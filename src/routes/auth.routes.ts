@@ -42,7 +42,6 @@ const router = Router();
  *               - firstName
  *               - lastName
  *               - email
- *               - phoneNumber
  *               - password
  *               - passwordConfirm
  *             properties:
@@ -66,7 +65,7 @@ const router = Router();
  *               phoneNumber:
  *                 type: string
  *                 pattern: "^[0-9]{7,15}$"
- *                 description: Phone number with 7-15 digits only
+ *                 description: Phone number with 7-15 digits only (optional)
  *                 example: "0911234567"
  *               password:
  *                 type: string

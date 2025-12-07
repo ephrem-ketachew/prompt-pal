@@ -15,13 +15,20 @@ import { UpdatePasswordInput } from '../validation/auth.schema.js';
 import googleClient from '../utils/google.util.js';
 
 export const registerUser = async (input: RegisterUserInput) => {
+  const queryConditions: any[] = [{ email: input.email }];
+  
+  if (input.phoneNumber) {
+    queryConditions.push({ phoneNumber: input.phoneNumber });
+  }
+
   const existingUser = await User.findOne({
-    $or: [{ email: input.email }, { phoneNumber: input.phoneNumber }],
+    $or: queryConditions,
   });
 
   if (existingUser) {
+    const conflictField = existingUser.email === input.email ? 'email' : 'phone number';
     throw new AppError(
-      'An account with this email or phone number already exists.',
+      `An account with this ${conflictField} already exists.`,
       409,
     );
   }
@@ -35,13 +42,13 @@ export const registerUser = async (input: RegisterUserInput) => {
   try {
     const verificationURL = `${config.clientUrl}/verify-email?token=${verificationToken}`;
 
-    const message = `Welcome to Kech.ai! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
+    const message = `Welcome to Prompt Pal! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
 
     await sendEmail({
       to: user.email,
-      subject: 'Verify Your Email for Kech.ai',
+      subject: 'Verify Your Email for Prompt Pal',
       text: message,
-      html: `<p>Welcome to Kech.ai! Please verify your email by clicking the link below:</p>
+      html: `<p>Welcome to Prompt Pal! Please verify your email by clicking the link below:</p>
              <a href="${verificationURL}" target="_blank">Verify Your Email</a>
              <p>This link is valid for 24 hours.</p>`,
     });
@@ -100,13 +107,13 @@ export const loginUser = async (input: LoginUserInput) => {
       try {
         const verificationURL = `${config.clientUrl}/verify-email?token=${verificationToken}`;
 
-        const message = `Welcome to Kech.ai! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
+        const message = `Welcome to Prompt Pal! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
 
         await sendEmail({
           to: user.email,
-          subject: 'Verify Your Email for Kech.ai (New Link)',
+          subject: 'Verify Your Email for Prompt Pal (New Link)',
           text: message,
-          html: `<p>Welcome to Kech.ai! Please verify your email by clicking the link below:</p>
+          html: `<p>Welcome to Prompt Pal! Please verify your email by clicking the link below:</p>
                  <a href="${verificationURL}" target="_blank">Verify Your Email</a>
                  <p>This link is valid for 24 hours.</p>`,
         });
@@ -309,7 +316,7 @@ export const googleAuth = async (code: string) => {
   } else {
     user = await User.create({
       firstName: payload.given_name || 'User',
-      lastName: payload.family_name || 'Kech',
+      lastName: payload.family_name || 'User',
       email: payload.email,
       googleId: payload.sub,
       profileImage: payload.picture,

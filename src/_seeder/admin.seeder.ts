@@ -21,9 +21,9 @@ const createSuperAdmin = async () => {
   try {
     const { email, password, phone } = config.superAdmin;
 
-    if (!email || !password || !phone) {
+    if (!email || !password) {
       logger.error(
-        '❌ Missing Superadmin credentials in config.env (SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, SUPER_ADMIN_PHONE)',
+        '❌ Missing Superadmin credentials in config.env (SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD)',
       );
       process.exit(1);
     }
@@ -39,11 +39,11 @@ const createSuperAdmin = async () => {
       lastName: 'Admin',
       email: email,
       password: password,
-      phoneNumber: phone,
+      phoneNumber: phone || undefined,
       role: 'superadmin',
       status: 'approved',
       isEmailVerified: true,
-      isPhoneVerified: true,
+      isPhoneVerified: phone ? true : false,
     });
 
     logger.info(`✅ Superadmin created successfully! (${email})`);
