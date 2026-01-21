@@ -264,7 +264,10 @@ export const googleAuth = async (code: string) => {
   }
 
   try {
-    const { tokens } = await googleClient.getToken(decodedCode);
+    const { tokens } = await googleClient.getToken({
+      code: decodedCode,
+      redirect_uri: config.googleOAuth.redirectUri || 'postmessage',
+    });
     idToken = tokens.id_token;
   } catch (err: any) {
     logger.error(err, 'Failed to exchange Google auth code for tokens');
