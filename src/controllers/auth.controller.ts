@@ -18,6 +18,7 @@ const cookieOptions = {
   secure: config.isProduction ? true : false,
   sameSite: (config.isProduction ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: 90 * 24 * 60 * 60 * 1000,
+  path: '/', // Ensure cookie is available for all paths
 };
 
 export const registerHandler = catchAsync(
@@ -82,6 +83,7 @@ export const loginHandler = catchAsync(
       status: 'success',
       data: {
         user,
+        token, // Also return token in response for frontend to store
       },
     });
   },
@@ -150,6 +152,7 @@ export const googleAuthHandler = catchAsync(
       status: 'success',
       data: {
         user,
+        token, // Also return token in response for frontend to store
       },
     });
   },

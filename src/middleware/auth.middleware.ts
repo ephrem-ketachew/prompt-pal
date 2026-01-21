@@ -11,8 +11,16 @@ export const protect = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     let token: string | undefined;
 
+    // Try to get token from cookie first (preferred method)
     if (req.cookies.jwt) {
       token = req.cookies.jwt;
+    }
+    // Fallback: get token from Authorization header (for cross-origin requests)
+    else if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer ')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
     }
 
     if (!token) {

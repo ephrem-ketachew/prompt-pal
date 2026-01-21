@@ -21,7 +21,20 @@ const app: Express = express();
 
 app.enable('trust proxy');
 
-app.use(helmet());
+// Configure Helmet to allow cross-origin cookies
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+  }),
+);
 
 const morganStream = {
   write: (message: string) => logger.debug(message.trim()),
@@ -37,6 +50,9 @@ app.use(
   cors({
     origin: config.corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
   }),
 );
 

@@ -264,6 +264,8 @@ export const googleAuth = async (code: string) => {
   }
 
   try {
+    // Explicitly pass redirect URI to match the one used in the authorization request
+    // When using @react-oauth/google with flow: 'auth-code', the redirect URI is 'postmessage'
     const { tokens } = await googleClient.getToken({
       code: decodedCode,
       redirect_uri: config.googleOAuth.redirectUri || 'postmessage',
