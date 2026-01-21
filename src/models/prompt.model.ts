@@ -80,87 +80,93 @@
  *           format: date-time
  *           description: Last update timestamp
  */
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema, SchemaDefinition } from 'mongoose';
 import { IPromptDocument } from '../types/prompt.types.js';
 
-const promptSchema = new Schema<IPromptDocument>(
-  {
-    user: {
+const promptSchemaDefinition: SchemaDefinition<IPromptDocument> = {
+  user: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User is required.'],
+    index: true,
+  },
+  title: {
+    type: String,
+    required: [true, 'Title is required.'],
+    trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters.'],
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Description cannot exceed 1000 characters.'],
+  },
+  promptText: {
+    type: String,
+    required: [true, 'Prompt text is required.'],
+    trim: true,
+  },
+  sampleOutput: {
+    type: String,
+    required: [true, 'Sample output is required.'],
+  },
+  mediaType: {
+    type: String,
+    enum: {
+      values: ['text', 'image', 'video', 'audio'],
+      message: 'Media type must be: text, image, video, or audio',
+    },
+    default: 'text',
+  },
+  aiModel: {
+    type: String,
+    required: [true, 'AI model is required.'],
+    trim: true,
+    maxlength: [100, 'AI model name cannot exceed 100 characters.'],
+  },
+  tags: {
+    type: [String],
+    default: [],
+    validate: {
+      validator: function (tags: string[]) {
+        return tags.length <= 10;
+      },
+      message: 'Cannot have more than 10 tags.',
+    },
+  },
+  likes: [
+    {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'User is required.'],
-      index: true,
     },
-    title: {
-      type: String,
-      required: [true, 'Title is required.'],
-      trim: true,
-      maxlength: [200, 'Title cannot exceed 200 characters.'],
-    },
-    description: {
-      type: String,
-      trim: true,
-      maxlength: [1000, 'Description cannot exceed 1000 characters.'],
-    },
-
-    promptText: {
-      type: String,
-      required: [true, 'Prompt text is required.'],
-      trim: true,
-    },
-
-    sampleOutput: {
-      type: String,
-      required: [true, 'Sample output is required.'],
-    },
-    mediaType: {
-      type: String,
-      enum: {
-        values: ['text', 'image', 'video', 'audio'],
-        message: 'Media type must be: text, image, video, or audio',
-      },
-      default: 'text',
-    },
-
-    aiModel: {
-      type: String,
-      required: [true, 'AI model is required.'],
-      trim: true,
-      maxlength: [100, 'AI model name cannot exceed 100 characters.'],
-    },
-    tags: {
-      type: [String],
-      default: [],
-      validate: {
-        validator: function (tags: string[]) {
-          return tags.length <= 10;
-        },
-        message: 'Cannot have more than 10 tags.',
-      },
-    },
-
-    likes: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
-    views: {
-      type: Number,
-      default: 0,
-    },
-
-    isPublic: {
-      type: Boolean,
-      default: true,
-    },
+  ],
+  views: {
+    type: Number,
+    default: 0,
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+  isPublic: {
+    type: Boolean,
+    default: true,
   },
-);
+  originalPromptText: {
+    type: String,
+    trim: true,
+  },
+  isOptimized: {
+    type: Boolean,
+    default: false,
+  },
+  optimizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'PromptOptimization',
+  },
+};
+
+const promptSchema = new Schema<IPromptDocument>(promptSchemaDefinition, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+});
 
 promptSchema.index({ user: 1 });
 promptSchema.index({ isPublic: 1, createdAt: -1 });

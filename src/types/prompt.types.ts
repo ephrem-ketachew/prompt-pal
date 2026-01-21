@@ -14,6 +14,9 @@ export interface IPromptDocument extends Document {
   likes: Types.ObjectId[];
   views: number;
   isPublic: boolean;
+  originalPromptText?: string;
+  isOptimized?: boolean;
+  optimizationId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }

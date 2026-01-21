@@ -1,0 +1,764 @@
+import { Router } from 'express';
+import { protect } from '../middleware/auth.middleware.js';
+import { validate } from '../middleware/validate.middleware.js';
+import * as promptOptimizerController from '../controllers/promptOptimizer.controller.js';
+import {
+  quickOptimizeSchema,
+  analyzePromptSchema,
+  buildPromptSchema,
+  getOptimizationSchema,
+  optimizationHistorySchema,
+  applyOptimizationSchema,
+  feedbackSchema,
+} from '../validation/promptOptimizer.schema.js';
+
+const router = Router();
+
+/**
+ * @swagger
+ * /prompt-optimizer/quick-optimize:
+ *   post:
+ *     summary: Quick optimize a prompt (grammar + structure only)
+ *     description: Fast optimization that only fixes grammar and improves structure. Preserves user intent without adding creative details.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - originalPrompt
+ *               - targetModel
+ *               - mediaType
+ *             properties:
+ *               originalPrompt:
+ *                 type: string
+ *                 minLength: 5
+ *                 maxLength: 5000
+ *                 description: The original prompt to optimize
+ *                 example: "create image of cat"
+ *               targetModel:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 description: Target AI model (e.g., DALL-E 3, GPT-4, Claude)
+ *                 example: "DALL-E 3"
+ *               mediaType:
+ *                 type: string
+ *                 enum: [text, image, video, audio]
+ *                 description: Type of media the prompt generates
+ *                 example: "image"
+ *     responses:
+ *       200:
+ *         description: Successfully optimized prompt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     optimization:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         originalPrompt:
+ *                           type: string
+ *                         optimizedPrompt:
+ *                           type: string
+ *                         targetModel:
+ *                           type: string
+ *                         mediaType:
+ *                           type: string
+ *                         optimizationType:
+ *                           type: string
+ *                           enum: [quick, premium]
+ *                         qualityScore:
+ *                           type: object
+ *                           properties:
+ *                             before:
+ *                               type: number
+ *                             after:
+ *                               type: number
+ *                             improvements:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                             intentPreserved:
+ *                               type: boolean
+ *                         metadata:
+ *                           type: object
+ *                         analysis:
+ *                           type: object
+ *                         improvements:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         note:
+ *                           type: string
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ */
+router.post(
+  '/quick-optimize',
+  protect,
+  validate(quickOptimizeSchema, 'body'),
+  promptOptimizerController.quickOptimize,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/analyze:
+ *   post:
+ *     summary: Analyze prompt and generate questions for premium optimization
+ *     description: Analyzes the prompt to identify missing elements and generates 3-5 smart questions to help create a premium optimized prompt. Uses AI (Gemini) to generate context-aware questions.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - originalPrompt
+ *               - targetModel
+ *               - mediaType
+ *             properties:
+ *               originalPrompt:
+ *                 type: string
+ *                 minLength: 5
+ *                 maxLength: 5000
+ *                 description: The original prompt to analyze
+ *                 example: "create image of cat"
+ *               targetModel:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 description: Target AI model
+ *                 example: "DALL-E 3"
+ *               mediaType:
+ *                 type: string
+ *                 enum: [text, image, video, audio]
+ *                 description: Type of media the prompt generates
+ *                 example: "image"
+ *     responses:
+ *       200:
+ *         description: Successfully analyzed prompt and generated questions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     originalPrompt:
+ *                       type: string
+ *                     analysis:
+ *                       type: object
+ *                       properties:
+ *                         completenessScore:
+ *                           type: number
+ *                         missingElements:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         grammarFixed:
+ *                           type: boolean
+ *                         structureImproved:
+ *                           type: boolean
+ *                     questions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           question:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                             enum: [select, select_or_text, textarea]
+ *                           priority:
+ *                             type: string
+ *                             enum: [high, medium, low]
+ *                           options:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                           default:
+ *                             type: string
+ *                           required:
+ *                             type: boolean
+ *                     additionalDetailsField:
+ *                       type: object
+ *                       properties:
+ *                         question:
+ *                           type: string
+ *                         type:
+ *                           type: string
+ *                         placeholder:
+ *                           type: string
+ *                         required:
+ *                           type: boolean
+ *                     quickOptimized:
+ *                       type: string
+ *                       description: Quick optimized version as fallback
+ *                     optimizationId:
+ *                       type: string
+ *                       description: ID to use when building the premium prompt
+ *                     note:
+ *                       type: string
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       500:
+ *         description: Internal server error - AI service unavailable
+ */
+router.post(
+  '/analyze',
+  protect,
+  validate(analyzePromptSchema, 'body'),
+  promptOptimizerController.analyzePrompt,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/build:
+ *   post:
+ *     summary: Build premium optimized prompt from user answers
+ *     description: Builds a premium optimized prompt using user's answers to questions and additional details. Uses AI (Gemini) to intelligently combine all inputs while preserving user intent.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - originalPrompt
+ *               - targetModel
+ *               - mediaType
+ *             properties:
+ *               originalPrompt:
+ *                 type: string
+ *                 minLength: 5
+ *                 maxLength: 5000
+ *                 description: The original prompt (must match the one used in analyze)
+ *                 example: "create image of cat"
+ *               targetModel:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 description: Target AI model
+ *                 example: "DALL-E 3"
+ *               mediaType:
+ *                 type: string
+ *                 enum: [text, image, video, audio]
+ *                 description: Type of media
+ *                 example: "image"
+ *               answers:
+ *                 type: object
+ *                 description: User answers to questions (question ID as key)
+ *                 additionalProperties:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       enum: [option, custom, default, skipped]
+ *                     value:
+ *                       type: string
+ *                     customText:
+ *                       type: string
+ *                 example:
+ *                   style:
+ *                     type: "custom"
+ *                     value: "watercolor with soft pastels"
+ *                   composition:
+ *                     type: "option"
+ *                     value: "close_up"
+ *                   background:
+ *                     type: "default"
+ *                     value: "natural"
+ *               additionalDetails:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 description: Free-form additional details (colors, moods, specific details, etc.)
+ *                 example: "orange tabby cat, golden hour lighting, cozy library atmosphere"
+ *     responses:
+ *       200:
+ *         description: Successfully built optimized prompt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     optimization:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         originalPrompt:
+ *                           type: string
+ *                         optimizedPrompt:
+ *                           type: string
+ *                         targetModel:
+ *                           type: string
+ *                         mediaType:
+ *                           type: string
+ *                         optimizationType:
+ *                           type: string
+ *                           enum: [quick, premium]
+ *                         qualityScore:
+ *                           type: object
+ *                           properties:
+ *                             before:
+ *                               type: number
+ *                             after:
+ *                               type: number
+ *                             improvements:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                             intentPreserved:
+ *                               type: boolean
+ *                             intentPreservationScore:
+ *                               type: number
+ *                         metadata:
+ *                           type: object
+ *                         improvements:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *       400:
+ *         description: Bad request - validation error or optimization not found
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: No optimization found - please analyze the prompt first
+ *       500:
+ *         description: Internal server error - AI service unavailable
+ */
+router.post(
+  '/build',
+  protect,
+  validate(buildPromptSchema, 'body'),
+  promptOptimizerController.buildPrompt,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/history:
+ *   get:
+ *     summary: Get user's optimization history
+ *     description: Retrieve paginated list of user's completed optimizations with optional filtering and statistics.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of items per page (max 100)
+ *         example: 20
+ *       - in: query
+ *         name: targetModel
+ *         schema:
+ *           type: string
+ *         description: Filter by target AI model (optional)
+ *         example: "DALL-E 3"
+ *       - in: query
+ *         name: optimizationType
+ *         schema:
+ *           type: string
+ *           enum: [quick, premium]
+ *         description: Filter by optimization type (optional)
+ *         example: "premium"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved optimization history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     optimizations:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           originalPrompt:
+ *                             type: string
+ *                           optimizedPrompt:
+ *                             type: string
+ *                           targetModel:
+ *                             type: string
+ *                           mediaType:
+ *                             type: string
+ *                           optimizationType:
+ *                             type: string
+ *                           qualityScore:
+ *                             type: object
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                     stats:
+ *                       type: object
+ *                       properties:
+ *                         avgQualityImprovement:
+ *                           type: number
+ *                         totalOptimizations:
+ *                           type: integer
+ *                         quickCount:
+ *                           type: integer
+ *                         premiumCount:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ */
+router.get(
+  '/history',
+  protect,
+  validate(optimizationHistorySchema, 'query'),
+  promptOptimizerController.getOptimizationHistory,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/{id}:
+ *   get:
+ *     summary: Get specific optimization by ID
+ *     description: Retrieve detailed information about a specific optimization including questions, answers, and quality metrics.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Optimization ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved optimization
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     optimization:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         originalPrompt:
+ *                           type: string
+ *                         optimizedPrompt:
+ *                           type: string
+ *                         targetModel:
+ *                           type: string
+ *                         mediaType:
+ *                           type: string
+ *                         optimizationType:
+ *                           type: string
+ *                         questions:
+ *                           type: array
+ *                         userAnswers:
+ *                           type: object
+ *                         additionalDetails:
+ *                           type: string
+ *                         qualityScore:
+ *                           type: object
+ *                         metadata:
+ *                           type: object
+ *                         analysis:
+ *                           type: object
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                         updatedAt:
+ *                           type: string
+ *                           format: date-time
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: Optimization not found
+ */
+router.get(
+  '/:id',
+  protect,
+  validate(getOptimizationSchema, 'params'),
+  promptOptimizerController.getOptimization,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/{id}:
+ *   delete:
+ *     summary: Delete optimization
+ *     description: Delete an optimization record. Only the owner can delete their optimizations.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Optimization ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Successfully deleted optimization
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: "Optimization deleted successfully."
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: Optimization not found
+ */
+router.delete(
+  '/:id',
+  protect,
+  validate(getOptimizationSchema, 'params'),
+  promptOptimizerController.deleteOptimization,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/{id}/apply:
+ *   post:
+ *     summary: Apply optimization to create a new Prompt
+ *     description: Creates a new Prompt in the system using the optimized prompt. Links the new prompt to the optimization record.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Optimization ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 200
+ *                 description: Title for the new prompt
+ *                 example: "Optimized Cat Image Prompt"
+ *               description:
+ *                 type: string
+ *                 maxLength: 1000
+ *                 description: Optional description
+ *                 example: "A premium optimized prompt for generating cat images"
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 maxItems: 10
+ *                 description: Tags for categorization
+ *                 example: ["cat", "image", "optimized"]
+ *               isPublic:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether the prompt should be publicly visible
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Prompt created successfully from optimization
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     prompt:
+ *                       $ref: '#/components/schemas/Prompt'
+ *       400:
+ *         description: Bad request - validation error or optimization not completed
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: Optimization not found or not completed
+ */
+router.post(
+  '/:id/apply',
+  protect,
+  validate(getOptimizationSchema, 'params'),
+  validate(applyOptimizationSchema, 'body'),
+  promptOptimizerController.applyOptimization,
+);
+
+/**
+ * @swagger
+ * /prompt-optimizer/{id}/feedback:
+ *   post:
+ *     summary: Submit feedback on optimization
+ *     description: Submit user feedback on the quality and helpfulness of an optimization. Used to improve the optimization system.
+ *     tags: [Prompt Optimizer]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Optimization ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - rating
+ *               - wasHelpful
+ *             properties:
+ *               rating:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 description: Rating from 1 (poor) to 5 (excellent)
+ *                 example: 5
+ *               wasHelpful:
+ *                 type: boolean
+ *                 description: Whether the optimization was helpful
+ *                 example: true
+ *               comments:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: Optional feedback comments
+ *                 example: "The optimized prompt was exactly what I needed!"
+ *     responses:
+ *       200:
+ *         description: Feedback submitted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: "Feedback submitted successfully."
+ *                     feedback:
+ *                       type: object
+ *                       properties:
+ *                         rating:
+ *                           type: integer
+ *                         wasHelpful:
+ *                           type: boolean
+ *                         comments:
+ *                           type: string
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: Optimization not found
+ */
+router.post(
+  '/:id/feedback',
+  protect,
+  validate(getOptimizationSchema, 'params'),
+  validate(feedbackSchema, 'body'),
+  promptOptimizerController.submitFeedback,
+);
+
+export default router;
+

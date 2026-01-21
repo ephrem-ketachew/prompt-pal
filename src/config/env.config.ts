@@ -106,6 +106,13 @@ const config: AppConfig = {
     redirectUri: getEnvVar('GOOGLE_REDIRECT_URI', false, 'postmessage'),
   },
 
+  gemini: {
+    apiKey: getEnvVar('GOOGLE_AI_API_KEY', false),
+    model: getEnvVar('GEMINI_MODEL', false, 'gemini-pro'),
+    temperature: getEnvVarAsInt('OPTIMIZATION_TEMPERATURE', false, 0.7),
+    maxTokens: getEnvVarAsInt('OPTIMIZATION_MAX_TOKENS', false, 2000),
+  },
+
   superAdmin: {
     email: getEnvVar('SUPER_ADMIN_EMAIL', false),
     password: getEnvVar('SUPER_ADMIN_PASSWORD', false),

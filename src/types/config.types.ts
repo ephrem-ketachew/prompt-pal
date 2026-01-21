@@ -39,6 +39,13 @@ interface GoogleOAuthConfig {
   redirectUri?: string;
 }
 
+interface GeminiConfig {
+  apiKey?: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'production' | 'test';
   isProduction: boolean;
@@ -55,5 +62,6 @@ export interface AppConfig {
   mailtrap: MailtrapConfig;
   brevo: BrevoConfig;
   googleOAuth: GoogleOAuthConfig;
+  gemini: GeminiConfig;
   superAdmin: SuperAdminConfig;
 }

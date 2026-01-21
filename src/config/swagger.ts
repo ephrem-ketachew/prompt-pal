@@ -49,6 +49,10 @@ const swaggerDefinition = {
       name: 'Prompts',
       description: 'Prompt creation, management, and discovery endpoints',
     },
+    {
+      name: 'Prompt Optimizer',
+      description: 'Prompt optimization endpoints for improving prompt quality',
+    },
   ],
 };
 
