@@ -83,11 +83,12 @@ export const getFeed = async (query: FeedQueryParams) => {
 
   // Add likesCount and commentCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
+    const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
     return {
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
-      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+      commentCount: commentCountMap.get(promptId) || 0,
     };
   });
 
@@ -291,11 +292,12 @@ export const getUserPrompts = async (
 
   // Add likesCount and commentCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
+    const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
     return {
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
-      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+      commentCount: commentCountMap.get(promptId) || 0,
     };
   });
 
@@ -363,11 +365,12 @@ export const getUserFavorites = async (
 
   // Add likesCount and commentCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
+    const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
     return {
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
-      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+      commentCount: commentCountMap.get(promptId) || 0,
     };
   });
 
