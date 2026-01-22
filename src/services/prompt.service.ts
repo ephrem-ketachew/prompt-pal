@@ -3,6 +3,7 @@ import AppError from '../utils/appError.util.js';
 import { CreatePromptInput, UpdatePromptInput, FeedQueryParams } from '../validation/prompt.schema.js';
 import { cloudinary } from '../utils/cloudinary.util.js';
 import logger from '../config/logger.config.js';
+import Comment from '../models/comment.model.js';
 
 export const createPrompt = async (
   userId: string,
@@ -68,8 +69,30 @@ export const getFeed = async (query: FeedQueryParams) => {
 
   const total = await Prompt.countDocuments(filter);
 
+  // Get comment counts for all prompts efficiently using aggregation
+  const promptIds = prompts.map((p) => p._id);
+  const commentCounts = await Comment.aggregate([
+    { $match: { prompt: { $in: promptIds } } },
+    { $group: { _id: '$prompt', count: { $sum: 1 } } },
+  ]);
+
+  // Create a map for quick lookup
+  const commentCountMap = new Map(
+    commentCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
+  // Add likesCount and commentCount to each prompt
+  const promptsWithCounts = prompts.map((prompt) => {
+    const promptObj = prompt.toObject();
+    return {
+      ...promptObj,
+      likesCount: prompt.likes?.length || 0,
+      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+    };
+  });
+
   return {
-    prompts,
+    prompts: promptsWithCounts,
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -90,14 +113,15 @@ export const getPromptById = async (promptId: string, includeComments = false) =
   prompt.views += 1;
   await prompt.save();
 
-  // Optionally include comments count (not full comments to avoid heavy payload)
-  if (includeComments) {
-    const Comment = (await import('../models/comment.model.js')).default;
-    const commentCount = await Comment.countDocuments({ prompt: promptId });
-    (prompt as any).commentCount = commentCount;
-  }
-
-  return prompt;
+  // Add likesCount and commentCount
+  const promptObj = prompt.toObject();
+  const commentCount = await Comment.countDocuments({ prompt: promptId });
+  
+  return {
+    ...promptObj,
+    likesCount: prompt.likes?.length || 0,
+    commentCount,
+  };
 };
 
 export const updatePrompt = async (
@@ -253,8 +277,30 @@ export const getUserPrompts = async (
 
   const total = await Prompt.countDocuments(filter);
 
+  // Get comment counts for all prompts efficiently using aggregation
+  const promptIds = prompts.map((p) => p._id);
+  const commentCounts = await Comment.aggregate([
+    { $match: { prompt: { $in: promptIds } } },
+    { $group: { _id: '$prompt', count: { $sum: 1 } } },
+  ]);
+
+  // Create a map for quick lookup
+  const commentCountMap = new Map(
+    commentCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
+  // Add likesCount and commentCount to each prompt
+  const promptsWithCounts = prompts.map((prompt) => {
+    const promptObj = prompt.toObject();
+    return {
+      ...promptObj,
+      likesCount: prompt.likes?.length || 0,
+      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+    };
+  });
+
   return {
-    prompts,
+    prompts: promptsWithCounts,
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -303,8 +349,30 @@ export const getUserFavorites = async (
 
   const total = await Prompt.countDocuments(filter);
 
+  // Get comment counts for all prompts efficiently using aggregation
+  const promptIds = prompts.map((p) => p._id);
+  const commentCounts = await Comment.aggregate([
+    { $match: { prompt: { $in: promptIds } } },
+    { $group: { _id: '$prompt', count: { $sum: 1 } } },
+  ]);
+
+  // Create a map for quick lookup
+  const commentCountMap = new Map(
+    commentCounts.map((item) => [item._id.toString(), item.count]),
+  );
+
+  // Add likesCount and commentCount to each prompt
+  const promptsWithCounts = prompts.map((prompt) => {
+    const promptObj = prompt.toObject();
+    return {
+      ...promptObj,
+      likesCount: prompt.likes?.length || 0,
+      commentCount: commentCountMap.get(prompt._id.toString()) || 0,
+    };
+  });
+
   return {
-    prompts,
+    prompts: promptsWithCounts,
     total,
     page,
     totalPages: Math.ceil(total / limit),
