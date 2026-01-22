@@ -39,7 +39,25 @@ export const createPromptSchema = z.object({
     .max(10, 'Cannot have more than 10 tags.')
     .optional()
     .default([]),
-  isPublic: z.boolean().optional().default(true),
+  isPublic: z
+    .preprocess(
+      (val) => {
+        if (val === undefined || val === null) {
+          return true; // Default to true
+        }
+        if (typeof val === 'string') {
+          const lowerVal = val.toLowerCase().trim();
+          return lowerVal === 'true' || lowerVal === '1';
+        }
+        if (typeof val === 'boolean') {
+          return val;
+        }
+        return true; // Default fallback
+      },
+      z.boolean()
+    )
+    .optional()
+    .default(true),
 });
 
 export const updatePromptSchema = z.object({
@@ -71,7 +89,24 @@ export const updatePromptSchema = z.object({
     .array(z.string().transform(trimAndSanitize))
     .max(10, 'Cannot have more than 10 tags.')
     .optional(),
-  isPublic: z.boolean().optional(),
+  isPublic: z
+    .preprocess(
+      (val) => {
+        if (val === undefined || val === null) {
+          return undefined; // Keep as undefined for optional field
+        }
+        if (typeof val === 'string') {
+          const lowerVal = val.toLowerCase().trim();
+          return lowerVal === 'true' || lowerVal === '1';
+        }
+        if (typeof val === 'boolean') {
+          return val;
+        }
+        return undefined; // Default fallback for optional field
+      },
+      z.boolean()
+    )
+    .optional(),
 });
 
 export const feedQuerySchema = z.object({
