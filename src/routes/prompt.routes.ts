@@ -557,6 +557,52 @@ router.post(
   promptController.toggleLike,
 );
 
+/**
+ * @swagger
+ * /prompts/{id}/share:
+ *   post:
+ *     summary: Share a prompt
+ *     tags: [Prompts]
+ *     description: Increment the share count for a prompt and return a shareable URL. This endpoint does not require authentication - anyone can share public prompts.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Prompt ID - must be a valid MongoDB ObjectId
+ *         example: 507f1f77bcf86cd799439011
+ *     responses:
+ *       200:
+ *         description: Prompt share count incremented successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shareableUrl:
+ *                       type: string
+ *                       description: Relative URL path to the prompt
+ *                       example: /prompts/507f1f77bcf86cd799439011
+ *                     sharesCount:
+ *                       type: integer
+ *                       description: Updated share count for the prompt
+ *                       example: 42
+ *       404:
+ *         description: Prompt not found
+ */
+router.post(
+  '/:id/share',
+  validate(getPromptSchema, 'params'),
+  promptController.sharePrompt,
+);
+
 // Mount comment routes as nested routes
 router.use('/:promptId/comments', commentRoutes);
 

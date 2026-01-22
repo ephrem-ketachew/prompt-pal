@@ -141,6 +141,21 @@ export const toggleLike = catchAsync(
   },
 );
 
+export const sharePrompt = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params as GetPromptParams;
+    const result = await promptService.incrementShare(id);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        shareableUrl: result.shareableUrl,
+        sharesCount: result.sharesCount,
+      },
+    });
+  },
+);
+
 export const getUserPrompts = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {

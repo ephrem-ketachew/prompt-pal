@@ -13,6 +13,7 @@ export interface IPromptDocument extends Document {
   tags: string[];
   likes: Types.ObjectId[];
   views: number;
+  shares: number;
   isPublic: boolean;
   originalPromptText?: string;
   isOptimized?: boolean;

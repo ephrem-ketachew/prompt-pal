@@ -67,6 +67,10 @@
  *           type: integer
  *           default: 0
  *           description: Number of times the prompt has been viewed
+ *         shares:
+ *           type: integer
+ *           default: 0
+ *           description: Number of times the prompt has been shared
  *         isPublic:
  *           type: boolean
  *           default: true
@@ -141,6 +145,10 @@ const promptSchemaDefinition: SchemaDefinition<IPromptDocument> = {
     },
   ],
   views: {
+    type: Number,
+    default: 0,
+  },
+  shares: {
     type: Number,
     default: 0,
   },

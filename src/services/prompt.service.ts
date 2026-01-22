@@ -81,7 +81,7 @@ export const getFeed = async (query: FeedQueryParams) => {
     commentCounts.map((item) => [item._id.toString(), item.count]),
   );
 
-  // Add likesCount and commentCount to each prompt
+  // Add likesCount, commentCount, and sharesCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
     const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
@@ -89,6 +89,7 @@ export const getFeed = async (query: FeedQueryParams) => {
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
       commentCount: commentCountMap.get(promptId) || 0,
+      sharesCount: prompt.shares || 0,
     };
   });
 
@@ -114,7 +115,7 @@ export const getPromptById = async (promptId: string, includeComments = false) =
   prompt.views += 1;
   await prompt.save();
 
-  // Add likesCount and commentCount
+  // Add likesCount, commentCount, and sharesCount
   const promptObj = prompt.toObject();
   const commentCount = await Comment.countDocuments({ prompt: promptId });
   
@@ -122,6 +123,7 @@ export const getPromptById = async (promptId: string, includeComments = false) =
     ...promptObj,
     likesCount: prompt.likes?.length || 0,
     commentCount,
+    sharesCount: prompt.shares || 0,
   };
 };
 
@@ -237,6 +239,27 @@ export const toggleLike = async (promptId: string, userId: string) => {
   return prompt;
 };
 
+export const incrementShare = async (promptId: string) => {
+  const prompt = await Prompt.findByIdAndUpdate(
+    promptId,
+    { $inc: { shares: 1 } },
+    { new: true },
+  );
+
+  if (!prompt) {
+    throw new AppError('Prompt not found.', 404);
+  }
+
+  // Generate shareable URL (frontend will construct the full URL)
+  const shareableUrl = `/prompts/${promptId}`;
+
+  return {
+    prompt,
+    shareableUrl,
+    sharesCount: prompt.shares,
+  };
+};
+
 export const getUserPrompts = async (
   userId: string,
   query: FeedQueryParams,
@@ -290,7 +313,7 @@ export const getUserPrompts = async (
     commentCounts.map((item) => [item._id.toString(), item.count]),
   );
 
-  // Add likesCount and commentCount to each prompt
+  // Add likesCount, commentCount, and sharesCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
     const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
@@ -298,6 +321,7 @@ export const getUserPrompts = async (
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
       commentCount: commentCountMap.get(promptId) || 0,
+      sharesCount: prompt.shares || 0,
     };
   });
 
@@ -363,7 +387,7 @@ export const getUserFavorites = async (
     commentCounts.map((item) => [item._id.toString(), item.count]),
   );
 
-  // Add likesCount and commentCount to each prompt
+  // Add likesCount, commentCount, and sharesCount to each prompt
   const promptsWithCounts = prompts.map((prompt) => {
     const promptId = String(prompt._id);
     const promptObj = prompt.toObject();
@@ -371,6 +395,7 @@ export const getUserFavorites = async (
       ...promptObj,
       likesCount: prompt.likes?.length || 0,
       commentCount: commentCountMap.get(promptId) || 0,
+      sharesCount: prompt.shares || 0,
     };
   });
 
