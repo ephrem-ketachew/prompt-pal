@@ -9,6 +9,7 @@ import {
   feedQuerySchema,
   getPromptSchema,
 } from '../validation/prompt.schema.js';
+import commentRoutes from './comment.routes.js';
 
 const router = Router();
 
@@ -387,6 +388,9 @@ router.post(
   validate(getPromptSchema, 'params'),
   promptController.toggleLike,
 );
+
+// Mount comment routes as nested routes
+router.use('/:promptId/comments', commentRoutes);
 
 export default router;
 

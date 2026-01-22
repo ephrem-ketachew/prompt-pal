@@ -77,7 +77,7 @@ export const getFeed = async (query: FeedQueryParams) => {
   };
 };
 
-export const getPromptById = async (promptId: string) => {
+export const getPromptById = async (promptId: string, includeComments = false) => {
   const prompt = await Prompt.findById(promptId).populate({
     path: 'user',
     select: 'firstName lastName email profileImage',
@@ -89,6 +89,13 @@ export const getPromptById = async (promptId: string) => {
 
   prompt.views += 1;
   await prompt.save();
+
+  // Optionally include comments count (not full comments to avoid heavy payload)
+  if (includeComments) {
+    const Comment = (await import('../models/comment.model.js')).default;
+    const commentCount = await Comment.countDocuments({ prompt: promptId });
+    (prompt as any).commentCount = commentCount;
+  }
 
   return prompt;
 };
