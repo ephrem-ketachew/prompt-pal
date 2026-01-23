@@ -477,22 +477,91 @@ function parseJSONResponse(response: string): any {
       try {
         const result: any = {};
         
-        // Extract optimizedPrompt - handle escaped and unescaped quotes
-        const optimizedPromptRegex = /"optimizedPrompt"\s*:\s*"((?:[^"\\]|\\.)*)"/;
-        const optimizedMatch = cleaned.match(optimizedPromptRegex);
-        if (optimizedMatch) {
+        // Extract optimizedPrompt - handle escaped and unescaped quotes, and incomplete/truncated strings
+        // First try standard format with escaped quotes
+        let optimizedMatch = cleaned.match(/"optimizedPrompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        
+        if (!optimizedMatch) {
+          // Try with unescaped quotes (handle malformed JSON)
+          optimizedMatch = cleaned.match(/"optimizedPrompt"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+        }
+        
+        if (!optimizedMatch) {
+          // More aggressive: find the key and extract everything after the opening quote
+          // This handles truncated/incomplete JSON responses
+          const keyStart = cleaned.indexOf('"optimizedPrompt"');
+          if (keyStart !== -1) {
+            const colonIndex = cleaned.indexOf(':', keyStart);
+            if (colonIndex !== -1) {
+              const quoteStart = cleaned.indexOf('"', colonIndex);
+              if (quoteStart !== -1) {
+                const valueContentStart = quoteStart + 1;
+                
+                // Try to find the closing quote, but handle truncated responses
+                let valueEnd = -1;
+                
+                // Look for ", (comma after quote) - indicates end of string value
+                const commaAfterQuote = cleaned.indexOf('",', valueContentStart);
+                if (commaAfterQuote !== -1) {
+                  valueEnd = commaAfterQuote;
+                } else {
+                  // Look for "} (quote before closing brace)
+                  const quoteBeforeBrace = cleaned.indexOf('"}', valueContentStart);
+                  if (quoteBeforeBrace !== -1) {
+                    valueEnd = quoteBeforeBrace;
+                  } else {
+                    // Look for just " followed by whitespace and } or ,
+                    const nextQuote = cleaned.indexOf('"', valueContentStart + 10);
+                    if (nextQuote !== -1) {
+                      const afterQuote = cleaned.substring(nextQuote + 1, nextQuote + 10).trim();
+                      if (afterQuote.startsWith(',') || afterQuote.startsWith('}')) {
+                        valueEnd = nextQuote;
+                      }
+                    }
+                  }
+                }
+                
+                // If we still can't find the end, the response might be truncated
+                // In that case, take everything from the opening quote to the end (or next key)
+                if (valueEnd === -1) {
+                  // Check if there's a next key (like "isValid")
+                  const nextKeyPattern = /"isValid"|"validationMessage"|"improvements"|"qualityScore"/;
+                  const nextKeyMatch = cleaned.substring(valueContentStart).match(nextKeyPattern);
+                  if (nextKeyMatch && nextKeyMatch.index !== undefined) {
+                    // Take everything up to the next key
+                    valueEnd = valueContentStart + nextKeyMatch.index - 1;
+                    // Remove any trailing quote or comma
+                    while (valueEnd > valueContentStart && (cleaned[valueEnd] === '"' || cleaned[valueEnd] === ',')) {
+                      valueEnd--;
+                    }
+                  } else {
+                    // Last resort: take everything to the end of the string
+                    valueEnd = cleaned.length;
+                  }
+                }
+                
+                if (valueEnd > valueContentStart) {
+                  const extracted = cleaned.substring(valueContentStart, valueEnd);
+                  result.optimizedPrompt = extracted
+                    .replace(/\\"/g, '"')
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\\\/g, '\\')
+                    .replace(/\\t/g, '\t')
+                    .trim();
+                }
+              }
+            }
+          }
+        } else {
           result.optimizedPrompt = optimizedMatch[1]
             .replace(/\\"/g, '"')
             .replace(/\\n/g, '\n')
-            .replace(/\\\\/g, '\\');
-        } else {
-          // Fallback: try to find it even with unescaped quotes
-          const fallbackMatch = cleaned.match(/"optimizedPrompt"\s*:\s*"([^"]*(?:"[^,}\]]*)*)"/);
-          if (fallbackMatch) {
-            result.optimizedPrompt = fallbackMatch[1].replace(/"/g, '');
-          } else {
-            throw new Error('Could not extract optimizedPrompt');
-          }
+            .replace(/\\\\/g, '\\')
+            .replace(/\\t/g, '\t');
+        }
+        
+        if (!result.optimizedPrompt || result.optimizedPrompt.length === 0) {
+          throw new Error('Could not extract optimizedPrompt');
         }
         
         // Extract isValid
