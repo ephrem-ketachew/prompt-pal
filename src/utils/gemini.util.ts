@@ -402,6 +402,100 @@ function getModelSpecificGuidance(
 }
 
 /**
+ * Get media-specific prompt engineering guidance
+ */
+function getMediaSpecificPromptGuidance(
+  mediaType: 'text' | 'image' | 'video' | 'audio',
+  targetModel: string,
+): string {
+  if (mediaType === 'text') {
+    return `TEXT PROMPT OPTIMIZATION GUIDANCE:
+- Add role/context when appropriate (e.g., "Act as a [role]", "You are a [expert]")
+- Specify output format (paragraph, list, structured, code, JSON, etc.)
+- Include tone and style specifications (professional, casual, technical, creative)
+- Add constraints and guidelines when relevant
+- Include examples or few-shot patterns if the prompt benefits from them
+- Specify length requirements if implied (short, detailed, comprehensive)
+- Add chain-of-thought reasoning if the task requires step-by-step thinking`;
+  } else if (mediaType === 'image') {
+    return `IMAGE PROMPT OPTIMIZATION GUIDANCE:
+- Include technical specifications (resolution, aspect ratio, quality)
+- Add style modifiers and artistic direction
+- Specify composition rules (rule of thirds, centered, etc.)
+- Include lighting and mood specifications if relevant
+- Add quality indicators (high-resolution, professional, detailed)
+- Format for ${targetModel} best practices (comma-separated for DALL-E, style tags for Midjourney)`;
+  } else if (mediaType === 'video' || mediaType === 'audio') {
+    return `${mediaType.toUpperCase()} PROMPT OPTIMIZATION GUIDANCE:
+- Specify duration and pacing
+- Include technical specs (fps, resolution, bitrate, format)
+- Add style and mood specifications
+- Include composition and framing for video
+- Add quality and format requirements`;
+  }
+  return '';
+}
+
+/**
+ * Get advanced prompt engineering techniques guidance based on media type
+ */
+function getAdvancedTechniquesGuidance(mediaType: 'text' | 'image' | 'video' | 'audio'): string {
+  if (mediaType === 'text') {
+    return `For TEXT prompts, apply these techniques when appropriate:
+1. ROLE-PLAYING: Add "Act as a [role]" or "You are a [expert]" when the prompt implies a specific role
+   - Example: "explain quantum physics" → "Act as a physics professor. Explain quantum physics..."
+   - Example: "write code" → "Act as a senior software engineer. Write code..."
+   - Only add if role is naturally implied by the task
+
+2. CONTEXT SETTING: Add relevant context, background, or constraints
+   - Example: "write a blog post" → "Write a blog post for a tech-savvy audience..."
+   - Only add context that enhances clarity without changing intent
+
+3. OUTPUT FORMAT: Specify desired output format (paragraph, list, JSON, code, table, etc.)
+   - Example: "list benefits" → "List the benefits in bullet points..."
+   - Only add if format is implied or would significantly improve results
+
+4. TONE & STYLE: Specify tone (professional, casual, technical, creative, formal)
+   - Example: "write email" → "Write a professional email..."
+   - Only add if tone is implied by context
+
+5. CONSTRAINTS: Add relevant constraints or guidelines
+   - Example: "generate ideas" → "Generate 5 creative ideas, each in one sentence..."
+   - Only add if constraints would improve specificity
+
+6. EXAMPLES: Add few-shot examples if the task benefits from demonstration
+   - Only add if the prompt type naturally benefits from examples (classification, formatting, etc.)
+
+7. CHAIN OF THOUGHT: Add step-by-step reasoning for complex tasks
+   - Example: "solve math problem" → "Solve this math problem step by step, showing your reasoning..."
+   - Only add for analytical or problem-solving tasks`;
+  } else if (mediaType === 'image') {
+    return `For IMAGE prompts, apply these techniques when appropriate:
+1. TECHNICAL SPECIFICATIONS: Add resolution, aspect ratio, quality indicators
+   - Example: "create image" → "Create a high-resolution 16:9 image..."
+   - Only add if it improves the prompt without changing creative intent
+
+2. STYLE MODIFIERS: Add appropriate style tags for the target model
+   - Example: For Midjourney: add style tags like "--style raw --ar 16:9"
+   - Example: For DALL-E: use comma-separated descriptive style terms
+
+3. COMPOSITION RULES: Add framing and composition guidance
+   - Example: "portrait" → "Portrait composition, rule of thirds..."
+   - Only add if it enhances the prompt naturally
+
+4. QUALITY INDICATORS: Add professional quality markers
+   - Example: "high quality", "professional", "detailed", "sharp focus"
+   - Only add if it improves the prompt without being redundant`;
+  } else {
+    return `For ${mediaType.toUpperCase()} prompts, apply these techniques when appropriate:
+1. TECHNICAL SPECIFICATIONS: Add fps, resolution, bitrate, format, duration
+2. STYLE & PACING: Add style modifiers and pacing specifications
+3. QUALITY INDICATORS: Add professional quality markers
+4. COMPOSITION: For video, add framing and composition guidance`;
+  }
+}
+
+/**
  * Quick optimize prompt using AI following standard prompt engineering best practices
  * Returns optimized prompt with validation and improvements list
  */
@@ -420,13 +514,18 @@ export async function quickOptimizeWithAI(
 ): Promise<QuickOptimizeResult> {
   const modelGuidance = getModelSpecificGuidance(targetModel, mediaType);
 
-  const systemPrompt = `You are a prompt optimization expert. Optimize this prompt following standard prompt engineering best practices.
+  // Get media-specific prompt engineering guidance
+  const mediaSpecificGuidance = getMediaSpecificPromptGuidance(mediaType, targetModel);
+
+  const systemPrompt = `You are a prompt optimization expert. Optimize this prompt following advanced prompt engineering best practices.
 
 ORIGINAL PROMPT: "${originalPrompt}"
 TARGET MODEL: ${targetModel}
 MEDIA TYPE: ${mediaType}
 
 ${modelGuidance}
+
+${mediaSpecificGuidance}
 
 OPTIMIZATION RULES (CRITICAL - Apply ALL of these):
 1. Fix ALL grammar and spelling errors
@@ -436,19 +535,23 @@ OPTIMIZATION RULES (CRITICAL - Apply ALL of these):
 5. Ensure proper structure: Subject → Action → Object → Context
 6. Use action-oriented, strong verbs (create, generate, design, build)
 7. Format appropriately for ${targetModel} best practices
-8. Maintain appropriate length (not too short, not too long - typically 10-100 words for most prompts)
+8. Maintain appropriate length (not too short, not too long - typically 10-150 words for most prompts)
 9. Ensure proper punctuation and capitalization
 10. Remove any nonsensical or contradictory elements
 11. Improve sentence flow and readability
 12. Use concise, direct language
 
+ADVANCED PROMPT ENGINEERING TECHNIQUES (Apply when appropriate):
+${getAdvancedTechniquesGuidance(mediaType)}
+
 INTENT PRESERVATION (CRITICAL - DO NOT VIOLATE):
 - DO NOT add creative details (colors, backgrounds, styles, moods) not in the original prompt
 - DO NOT add new subjects, objects, or concepts not mentioned
 - DO NOT change the core meaning or intent
-- ONLY improve grammar, structure, clarity, and formatting
+- ONLY improve grammar, structure, clarity, formatting, and apply appropriate prompt engineering techniques
 - Preserve the user's original simplicity level - if they wanted simple, keep it simple
-- If the original is vague, improve clarity WITHOUT adding unsolicited details
+- If the original is vague, improve clarity WITH appropriate prompt engineering techniques (role, context, format) WITHOUT adding unsolicited creative details
+- When adding role/context, infer it naturally from the prompt's intent (e.g., "write code" → add developer role, "explain physics" → add teacher role)
 
 VALIDATION:
 - If the prompt is completely nonsensical (random characters, gibberish, no coherent meaning), set isValid to false and explain why
