@@ -86,6 +86,7 @@ class SimpleCache {
 // Create cache instances for different purposes
 export const questionCache = new SimpleCache(1800); // 30 minutes for questions
 export const optimizationCache = new SimpleCache(3600); // 1 hour for optimizations
+export const analyticsCache = new SimpleCache(600); // 10 minutes default for analytics
 
 // Clean expired entries every 5 minutes
 if (typeof setInterval !== 'undefined') {

@@ -17,6 +17,7 @@ import userRoutes from './routes/user.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import promptRoutes from './routes/prompt.routes.js';
 import promptOptimizerRoutes from './routes/promptOptimizer.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 const app: Express = express();
 
@@ -77,6 +78,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin/analytics', analyticsRoutes);
 app.use('/api/v1/prompts', promptRoutes);
 app.use('/api/v1/prompt-optimizer', promptOptimizerRoutes);
 

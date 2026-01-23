@@ -36,6 +36,8 @@ export const getFeed = async (query: FeedQueryParams) => {
 
   const filter: any = {
     isPublic: true,
+    isHidden: false,
+    isDeleted: false,
   };
 
   if (tag) {
@@ -72,7 +74,13 @@ export const getFeed = async (query: FeedQueryParams) => {
   // Get comment counts for all prompts efficiently using aggregation
   const promptIds = prompts.map((p) => p._id);
   const commentCounts = await Comment.aggregate([
-    { $match: { prompt: { $in: promptIds } } },
+    {
+      $match: {
+        prompt: { $in: promptIds },
+        isDeleted: false,
+        isHidden: false,
+      },
+    },
     { $group: { _id: '$prompt', count: { $sum: 1 } } },
   ]);
 
@@ -103,12 +111,19 @@ export const getFeed = async (query: FeedQueryParams) => {
 };
 
 export const getPromptById = async (promptId: string, includeComments = false) => {
-  const prompt = await Prompt.findById(promptId).populate({
+  const prompt = await Prompt.findOne({
+    _id: promptId,
+    isDeleted: false,
+  }).populate({
     path: 'user',
     select: 'firstName lastName email profileImage',
   });
 
   if (!prompt) {
+    throw new AppError('Prompt not found.', 404);
+  }
+
+  if (prompt.isHidden && !includeComments) {
     throw new AppError('Prompt not found.', 404);
   }
 
@@ -268,6 +283,7 @@ export const getUserPrompts = async (
 
   const filter: any = {
     user: userId,
+    isDeleted: false,
   };
 
   if (tag) {
@@ -304,7 +320,13 @@ export const getUserPrompts = async (
   // Get comment counts for all prompts efficiently using aggregation
   const promptIds = prompts.map((p) => p._id);
   const commentCounts = await Comment.aggregate([
-    { $match: { prompt: { $in: promptIds } } },
+    {
+      $match: {
+        prompt: { $in: promptIds },
+        isDeleted: false,
+        isHidden: false,
+      },
+    },
     { $group: { _id: '$prompt', count: { $sum: 1 } } },
   ]);
 
@@ -342,6 +364,8 @@ export const getUserFavorites = async (
 
   const filter: any = {
     likes: userId,
+    isDeleted: false,
+    isHidden: false,
   };
 
   if (tag) {
@@ -378,7 +402,13 @@ export const getUserFavorites = async (
   // Get comment counts for all prompts efficiently using aggregation
   const promptIds = prompts.map((p) => p._id);
   const commentCounts = await Comment.aggregate([
-    { $match: { prompt: { $in: promptIds } } },
+    {
+      $match: {
+        prompt: { $in: promptIds },
+        isDeleted: false,
+        isHidden: false,
+      },
+    },
     { $group: { _id: '$prompt', count: { $sum: 1 } } },
   ]);
 

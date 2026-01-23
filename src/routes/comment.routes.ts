@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware.js';
 import * as commentController from '../controllers/comment.controller.js';
+import * as flagController from '../controllers/flag.controller.js';
 import { validate } from '../middleware/validate.middleware.js';
 import {
   createCommentSchema,
@@ -11,6 +12,7 @@ import {
   getCommentsQuerySchema,
   toggleCommentLikeSchema,
 } from '../validation/comment.schema.js';
+import { flagContentSchema } from '../validation/admin.validation.js';
 
 const router = Router({ mergeParams: true });
 
@@ -367,6 +369,69 @@ router.post(
   protect,
   validate(toggleCommentLikeSchema, 'params'),
   commentController.toggleCommentLike,
+);
+
+/**
+ * @swagger
+ * /prompts/{promptId}/comments/{commentId}/flag:
+ *   post:
+ *     summary: Flag a comment
+ *     tags: [Comments]
+ *     description: Report a comment for review. Requires authentication. Users can only flag a comment once.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: promptId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - contentType
+ *               - contentId
+ *               - reason
+ *             properties:
+ *               contentType:
+ *                 type: string
+ *                 enum: [comment]
+ *                 example: comment
+ *               contentId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *               reason:
+ *                 type: string
+ *                 enum: [spam, inappropriate, copyright, harassment, other]
+ *                 example: inappropriate
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: Comment flagged successfully
+ *       400:
+ *         description: Bad request - already flagged or invalid input
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Comment not found
+ */
+router.post(
+  '/:commentId/flag',
+  protect,
+  validate(toggleCommentLikeSchema, 'params'),
+  validate(flagContentSchema, 'body'),
+  flagController.flagContentHandler,
 );
 
 export default router;

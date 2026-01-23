@@ -10,6 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "lint": "eslint . --ext .ts",
     "seed:admin": "tsx src/_seeder/admin.seeder.ts",
+    "migrate:moderation": "tsx src/_migrations/add-moderation-fields.migration.ts",
+    "test:endpoints": "node test-endpoints.js",
     "format": "prettier --write \"src/**/*.ts\""
   },
   "keywords": [

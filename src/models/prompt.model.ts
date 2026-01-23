@@ -83,6 +83,37 @@
  *           type: string
  *           format: date-time
  *           description: Last update timestamp
+ *         isHidden:
+ *           type: boolean
+ *           default: false
+ *           description: Whether the prompt is hidden from public view
+ *         isDeleted:
+ *           type: boolean
+ *           default: false
+ *           description: Whether the prompt is soft-deleted
+ *         deletedAt:
+ *           type: string
+ *           format: date-time
+ *           description: Timestamp when the prompt was deleted
+ *         deletedBy:
+ *           type: string
+ *           description: Admin user ID who deleted the prompt (references User)
+ *         moderationReason:
+ *           type: string
+ *           enum: [spam, inappropriate, copyright, policy_violation, other]
+ *           description: Reason for moderation action
+ *         moderationNotes:
+ *           type: string
+ *           maxLength: 500
+ *           description: Additional notes about the moderation action
+ *         flaggedCount:
+ *           type: integer
+ *           default: 0
+ *           description: Number of times this prompt has been flagged
+ *         lastFlaggedAt:
+ *           type: string
+ *           format: date-time
+ *           description: Timestamp of the most recent flag
  */
 import mongoose, { Schema, SchemaDefinition } from 'mongoose';
 import { IPromptDocument } from '../types/prompt.types.js';
@@ -168,6 +199,44 @@ const promptSchemaDefinition: SchemaDefinition<IPromptDocument> = {
     type: Schema.Types.ObjectId,
     ref: 'PromptOptimization',
   },
+  // Moderation fields
+  isHidden: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  deletedAt: {
+    type: Date,
+  },
+  deletedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+  },
+  moderationReason: {
+    type: String,
+    enum: {
+      values: ['spam', 'inappropriate', 'copyright', 'policy_violation', 'other'],
+      message:
+        'Moderation reason must be: spam, inappropriate, copyright, policy_violation, or other',
+    },
+  },
+  moderationNotes: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Moderation notes cannot exceed 500 characters.'],
+  },
+  flaggedCount: {
+    type: Number,
+    default: 0,
+  },
+  lastFlaggedAt: {
+    type: Date,
+  },
 };
 
 const promptSchema = new Schema<IPromptDocument>(promptSchemaDefinition, {
@@ -190,6 +259,12 @@ promptSchema.index({
 
 promptSchema.index({ isPublic: 1, createdAt: -1, aiModel: 1 });
 promptSchema.index({ isPublic: 1, createdAt: -1, tags: 1 });
+
+// Moderation indexes
+promptSchema.index({ isHidden: 1, isDeleted: 1, createdAt: -1 });
+promptSchema.index({ flaggedCount: -1, lastFlaggedAt: -1 });
+promptSchema.index({ deletedBy: 1 });
+promptSchema.index({ isPublic: 1, isHidden: 1, isDeleted: 1, createdAt: -1 });
 
 const Prompt = mongoose.model<IPromptDocument>('Prompt', promptSchema);
 

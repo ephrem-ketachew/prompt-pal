@@ -46,8 +46,16 @@ const swaggerDefinition = {
       description: 'Admin endpoints for platform management',
     },
     {
+      name: 'Analytics',
+      description: 'Analytics and statistics endpoints for platform insights',
+    },
+    {
       name: 'Prompts',
       description: 'Prompt creation, management, and discovery endpoints',
+    },
+    {
+      name: 'Comments',
+      description: 'Comment management endpoints',
     },
     {
       name: 'Prompt Optimizer',

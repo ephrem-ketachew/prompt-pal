@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware.js';
 import { upload } from '../utils/fileUpload.util.js';
 import * as promptController from '../controllers/prompt.controller.js';
+import * as flagController from '../controllers/flag.controller.js';
 import { validate } from '../middleware/validate.middleware.js';
 import {
   createPromptSchema,
@@ -9,6 +10,7 @@ import {
   feedQuerySchema,
   getPromptSchema,
 } from '../validation/prompt.schema.js';
+import { flagContentSchema } from '../validation/admin.validation.js';
 import commentRoutes from './comment.routes.js';
 
 const router = Router();
@@ -601,6 +603,67 @@ router.post(
   '/:id/share',
   validate(getPromptSchema, 'params'),
   promptController.sharePrompt,
+);
+
+/**
+ * @swagger
+ * /prompts/{id}/flag:
+ *   post:
+ *     summary: Flag a prompt
+ *     tags: [Prompts]
+ *     description: Report a prompt for review. Requires authentication. Users can only flag a prompt once.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Prompt ID - must be a valid MongoDB ObjectId
+ *         example: 507f1f77bcf86cd799439011
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - contentType
+ *               - contentId
+ *               - reason
+ *             properties:
+ *               contentType:
+ *                 type: string
+ *                 enum: [prompt]
+ *                 example: prompt
+ *               contentId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *               reason:
+ *                 type: string
+ *                 enum: [spam, inappropriate, copyright, harassment, other]
+ *                 example: spam
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *                 example: This prompt contains spam links
+ *     responses:
+ *       201:
+ *         description: Prompt flagged successfully
+ *       400:
+ *         description: Bad request - already flagged or invalid input
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       404:
+ *         description: Prompt not found
+ */
+router.post(
+  '/:id/flag',
+  protect,
+  validate(getPromptSchema, 'params'),
+  validate(flagContentSchema, 'body'),
+  flagController.flagContentHandler,
 );
 
 // Mount comment routes as nested routes

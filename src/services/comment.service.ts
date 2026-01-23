@@ -45,7 +45,11 @@ export const getCommentsByPrompt = async (
   const { page = 1, limit = 20 } = query;
   const skip = (page - 1) * limit;
 
-  const comments = await Comment.find({ prompt: promptId })
+  const comments = await Comment.find({
+    prompt: promptId,
+    isDeleted: false,
+    isHidden: false,
+  })
     .populate({
       path: 'user',
       select: 'firstName lastName email profileImage',
@@ -54,7 +58,11 @@ export const getCommentsByPrompt = async (
     .skip(skip)
     .limit(limit);
 
-  const total = await Comment.countDocuments({ prompt: promptId });
+  const total = await Comment.countDocuments({
+    prompt: promptId,
+    isDeleted: false,
+    isHidden: false,
+  });
 
   return {
     comments,
@@ -66,12 +74,19 @@ export const getCommentsByPrompt = async (
 };
 
 export const getCommentById = async (commentId: string) => {
-  const comment = await Comment.findById(commentId).populate({
+  const comment = await Comment.findOne({
+    _id: commentId,
+    isDeleted: false,
+  }).populate({
     path: 'user',
     select: 'firstName lastName email profileImage',
   });
 
   if (!comment) {
+    throw new AppError('Comment not found.', 404);
+  }
+
+  if (comment.isHidden) {
     throw new AppError('Comment not found.', 404);
   }
 
@@ -138,9 +153,16 @@ export const deleteComment = async (
 };
 
 export const toggleCommentLike = async (commentId: string, userId: string) => {
-  const comment = await Comment.findById(commentId);
+  const comment = await Comment.findOne({
+    _id: commentId,
+    isDeleted: false,
+  });
 
   if (!comment) {
+    throw new AppError('Comment not found.', 404);
+  }
+
+  if (comment.isHidden) {
     throw new AppError('Comment not found.', 404);
   }
 
