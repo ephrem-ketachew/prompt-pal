@@ -13,12 +13,12 @@ const swaggerDefinition = {
   },
   servers: [
     {
-      url: 'http://localhost:3000/api/v1',
-      description: 'Development server',
+      url: 'http://localhost:8000/api/v1',
+      description: 'Local development server',
     },
     {
-      url: 'https://api.promptpal.com/api/v1',
-      description: 'Production server',
+      url: 'https://prompt-pal-tyyl.onrender.com/api/v1',
+      description: 'Production server (Render)',
     },
   ],
   components: {
@@ -60,6 +60,14 @@ const swaggerDefinition = {
     {
       name: 'Prompt Optimizer',
       description: 'Prompt optimization endpoints for improving prompt quality',
+    },
+    {
+      name: 'Blogs',
+      description: 'Blog post creation, management, and discovery endpoints',
+    },
+    {
+      name: 'Admin - Blogs',
+      description: 'Admin endpoints for blog moderation and management',
     },
   ],
 };

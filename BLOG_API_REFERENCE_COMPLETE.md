@@ -1,6 +1,7 @@
 # Blog API - Complete Reference Guide 📚
 
 ## Quick Navigation
+- [Base URLs](#base-urls)
 - [Core CRUD](#core-crud-operations)
 - [Section Management](#section-management)
 - [Image Uploads](#image-uploads)
@@ -8,6 +9,24 @@
 - [Comments](#comments-system)
 - [Discovery](#discovery--analytics)
 - [Moderation](#moderation-admin)
+
+---
+
+## Base URLs
+
+**Local Development:**
+```
+http://localhost:8000/api/v1
+```
+
+**Production (Render):**
+```
+https://prompt-pal-tyyl.onrender.com/api/v1
+```
+
+**Swagger UI:**
+- Local: `http://localhost:8000/api-docs`
+- Production: `https://prompt-pal-tyyl.onrender.com/api-docs`
 
 ---
 

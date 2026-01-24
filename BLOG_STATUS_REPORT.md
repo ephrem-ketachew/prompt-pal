@@ -239,8 +239,14 @@
 - ✅ Error responses documented
 
 ### Swagger UI Access
+**Local:**
 ```
 http://localhost:8000/api-docs
+```
+
+**Production:**
+```
+https://prompt-pal-tyyl.onrender.com/api-docs
 ```
 
 **Status:** ✅ All completed phases have full Swagger documentation

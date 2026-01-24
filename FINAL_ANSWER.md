@@ -65,8 +65,15 @@
 ### ✅ COMPLETE - All Implemented Features Documented
 
 **Access Swagger UI:**
+
+**Local Development:**
 ```
 http://localhost:8000/api-docs
+```
+
+**Production (Render):**
+```
+https://prompt-pal-tyyl.onrender.com/api-docs
 ```
 
 **Documented Endpoints:**

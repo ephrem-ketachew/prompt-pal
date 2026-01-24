@@ -9,8 +9,8 @@ This guide helps frontend developers get up and running with the blog API immedi
 ## 📍 Base URL
 
 ```
-Development: http://localhost:8000/api/v1/blogs
-Production: https://your-api.com/api/v1/blogs
+Local Development: http://localhost:8000/api/v1/blogs
+Production: https://prompt-pal-tyyl.onrender.com/api/v1/blogs
 ```
 
 ---
