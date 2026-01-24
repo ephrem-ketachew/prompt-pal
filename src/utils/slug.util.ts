@@ -1,8 +1,9 @@
 import { Model } from 'mongoose';
+import { randomBytes } from 'crypto';
 
 /**
  * Generates a URL-friendly slug from a title
- * Ensures uniqueness by appending a counter if needed
+ * Ensures uniqueness by appending a short random ID
  */
 export async function generateUniqueSlug(
   title: string,
@@ -17,22 +18,26 @@ export async function generateUniqueSlug(
     .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
     .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 
-  // Truncate if too long
-  if (slug.length > 100) {
-    slug = slug.substring(0, 100).replace(/-+$/, '');
+  // Truncate if too long (leave room for ID suffix)
+  if (slug.length > 80) {
+    slug = slug.substring(0, 80).replace(/-+$/, '');
   }
 
-  // Check uniqueness
-  let uniqueSlug = slug;
-  let counter = 1;
+  // Generate a short unique ID (6 characters from random bytes)
+  const shortId = randomBytes(3).toString('hex');
+  
+  // Append ID to slug for better uniqueness
+  let uniqueSlug = `${slug}-${shortId}`;
 
   const query: any = { slug: uniqueSlug };
   if (excludeId) {
     query._id = { $ne: excludeId };
   }
 
+  // If still not unique (very rare), append counter
+  let counter = 1;
   while (await model.findOne(query)) {
-    uniqueSlug = `${slug}-${counter}`;
+    uniqueSlug = `${slug}-${shortId}-${counter}`;
     query.slug = uniqueSlug;
     counter++;
   }
