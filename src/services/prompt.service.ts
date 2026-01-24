@@ -69,6 +69,7 @@ export const getFeed = async (query: FeedQueryParams) => {
     isPublic: true,
     isHidden: false,
     isDeleted: false,
+    status: 'active',
   };
 
   if (tag) {
