@@ -41,16 +41,13 @@ export const registerUser = async (input: RegisterUserInput) => {
 
   try {
     const verificationURL = `${config.clientUrl}/verify-email?token=${verificationToken}`;
-
-    const message = `Welcome to Prompt Pal! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
+    const { getEmailVerificationTemplate, getEmailVerificationText } = await import('../utils/emailTemplates.util.js');
 
     await sendEmail({
       to: user.email,
-      subject: 'Verify Your Email for Prompt Pal',
-      text: message,
-      html: `<p>Welcome to Prompt Pal! Please verify your email by clicking the link below:</p>
-             <a href="${verificationURL}" target="_blank">Verify Your Email</a>
-             <p>This link is valid for 24 hours.</p>`,
+      subject: 'Verify Your Email - Welcome to PromptPal!',
+      text: getEmailVerificationText(verificationURL, user.firstName),
+      html: getEmailVerificationTemplate(verificationURL, user.firstName),
     });
   } catch (emailError) {
     logger.error(
@@ -93,47 +90,42 @@ export const loginUser = async (input: LoginUserInput) => {
   }
 
   if (!user.isEmailVerified) {
-    const isTokenExpired =
-      !user.emailVerificationTokenExpires ||
-      user.emailVerificationTokenExpires < new Date(Date.now());
+    // Always generate a new verification token and send email when user tries to login
+    // This ensures they always get a fresh link
+    logger.info('User email not verified - generating new verification token');
+    const verificationToken = user.createEmailVerificationToken();
+    logger.info(`New verification token created: ${verificationToken}`);
 
-    if (isTokenExpired) {
-      logger.info('TOKEN HAS EXPIRED');
-      const verificationToken = user.createEmailVerificationToken();
-      logger.info(verificationToken);
+    await user.save();
 
-      await user.save();
+    try {
+      const verificationURL = `${config.clientUrl}/verify-email?token=${verificationToken}`;
+      const { getEmailVerificationTemplate, getEmailVerificationText } = await import('../utils/emailTemplates.util.js');
 
-      try {
-        const verificationURL = `${config.clientUrl}/verify-email?token=${verificationToken}`;
-
-        const message = `Welcome to Prompt Pal! Please verify your email by clicking this link: ${verificationURL}\n\nThis link is valid for 24 hours.`;
-
-        await sendEmail({
-          to: user.email,
-          subject: 'Verify Your Email for Prompt Pal (New Link)',
-          text: message,
-          html: `<p>Welcome to Prompt Pal! Please verify your email by clicking the link below:</p>
-                 <a href="${verificationURL}" target="_blank">Verify Your Email</a>
-                 <p>This link is valid for 24 hours.</p>`,
-        });
-      } catch (emailError) {
-        logger.error(
-          emailError,
-          `Failed to re-send verification email to ${user.email}`,
-        );
-      }
-
-      throw new AppError(
-        'Email not verified. We have sent a new verification link to your email.',
-        403,
+      await sendEmail({
+        to: user.email,
+        subject: 'Verify Your Email - PromptPal',
+        text: getEmailVerificationText(verificationURL, user.firstName),
+        html: getEmailVerificationTemplate(verificationURL, user.firstName),
+      });
+      
+      logger.info(`Verification email sent successfully to ${user.email}`);
+    } catch (emailError) {
+      logger.error(
+        emailError,
+        `Failed to send verification email to ${user.email}`,
       );
-    } else {
+      // Still throw the error even if email fails, but with different message
       throw new AppError(
-        'Email not verified. A verification link has already been sent. Please check your email.',
+        'Email not verified. Failed to send verification email. Please contact support.',
         403,
       );
     }
+
+    throw new AppError(
+      'Email not verified. We have sent a new verification link to your email.',
+      403,
+    );
   }
 
   if (!user.active) {
