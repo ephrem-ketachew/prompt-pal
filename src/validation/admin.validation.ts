@@ -71,6 +71,12 @@ export const getPromptsAdminSchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(20),
 });
 
+export const updatePromptStatusSchema = z.object({
+  status: z.enum(['active', 'inactive', 'deleted'], {
+    message: 'Status must be: active, inactive, or deleted',
+  }),
+});
+
 export const getCommentsAdminSchema = z.object({
   promptId: objectIdSchema.optional(),
   isHidden: z.coerce.boolean().optional(),
@@ -120,6 +126,7 @@ export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
 export type ModerateContentInput = z.infer<typeof moderateContentSchema>;
 export type BulkModerateInput = z.infer<typeof bulkModerateSchema>;
 export type GetPromptsAdminQuery = z.infer<typeof getPromptsAdminSchema>;
+export type UpdatePromptStatusInput = z.infer<typeof updatePromptStatusSchema>;
 export type GetCommentsAdminQuery = z.infer<typeof getCommentsAdminSchema>;
 export type GetFlaggedContentQuery = z.infer<typeof getFlaggedContentSchema>;
 export type ReviewFlagInput = z.infer<typeof reviewFlagSchema>;

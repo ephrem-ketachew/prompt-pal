@@ -11,6 +11,7 @@ import {
   ModerateContentInput,
   BulkModerateInput,
   GetPromptsAdminQuery,
+  UpdatePromptStatusInput,
   GetCommentsAdminQuery,
   GetFlaggedContentQuery,
   ReviewFlagInput,
@@ -162,6 +163,55 @@ export const getPromptDetailsAdminHandler = catchAsync(
     res.status(200).json({
       status: 'success',
       data: { prompt },
+    });
+  },
+);
+
+export const updatePromptStatusHandler = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+    const { status } = req.body as UpdatePromptStatusInput;
+
+    const prompt = await Prompt.findById(id);
+
+    if (!prompt) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Prompt not found.',
+      });
+    }
+
+    // Map status to isHidden and isDeleted fields
+    if (status === 'active') {
+      prompt.isHidden = false;
+      prompt.isDeleted = false;
+      if (prompt.deletedAt) prompt.deletedAt = undefined;
+      if (prompt.deletedBy) prompt.deletedBy = undefined;
+    } else if (status === 'inactive') {
+      prompt.isHidden = true;
+      prompt.isDeleted = false;
+      if (prompt.deletedAt) prompt.deletedAt = undefined;
+      if (prompt.deletedBy) prompt.deletedBy = undefined;
+    } else if (status === 'deleted') {
+      prompt.isHidden = true;
+      prompt.isDeleted = true;
+      prompt.deletedAt = new Date();
+      prompt.deletedBy = req.user!.id as any;
+    }
+
+    await prompt.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: `Prompt status updated to ${status}.`,
+      data: {
+        prompt: {
+          id: prompt.id,
+          status,
+          isHidden: prompt.isHidden,
+          isDeleted: prompt.isDeleted,
+        },
+      },
     });
   },
 );

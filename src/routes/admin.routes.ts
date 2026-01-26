@@ -9,6 +9,7 @@ import {
   moderateContentSchema,
   bulkModerateSchema,
   getPromptsAdminSchema,
+  updatePromptStatusSchema,
   getCommentsAdminSchema,
   getFlaggedContentSchema,
   reviewFlagSchema,
@@ -405,6 +406,85 @@ router.get(
   '/prompts/:id',
   validate(getUserSchema, 'params'),
   adminController.getPromptDetailsAdminHandler,
+);
+
+/**
+ * @swagger
+ * /admin/prompts/{id}/status:
+ *   patch:
+ *     summary: Update prompt status
+ *     tags: [Admin]
+ *     description: Update the status of a prompt (active, inactive, or deleted). Requires admin or superadmin role.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Prompt ID - must be a valid MongoDB ObjectId
+ *         example: 507f1f77bcf86cd799439011
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, deleted]
+ *                 description: New status for the prompt
+ *                 example: inactive
+ *     responses:
+ *       200:
+ *         description: Prompt status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Prompt status updated to inactive.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     prompt:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           example: 507f1f77bcf86cd799439011
+ *                         status:
+ *                           type: string
+ *                           example: inactive
+ *                         isHidden:
+ *                           type: boolean
+ *                           example: true
+ *                         isDeleted:
+ *                           type: boolean
+ *                           example: false
+ *       400:
+ *         description: Bad request - invalid ID or status value
+ *       401:
+ *         description: Unauthorized - valid JWT cookie required
+ *       403:
+ *         description: Forbidden - admin or superadmin role required
+ *       404:
+ *         description: Prompt not found
+ */
+router.patch(
+  '/prompts/:id/status',
+  validate(getUserSchema, 'params'),
+  validate(updatePromptStatusSchema, 'body'),
+  adminController.updatePromptStatusHandler,
 );
 
 /**
