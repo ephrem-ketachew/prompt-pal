@@ -166,11 +166,17 @@ export const getBlogs = async (query: BlogQueryParams, userId?: string) => {
   // Format response
   const blogsWithCounts = blogs.map((blog) => {
     const blogObj = blog.toObject();
+    // Check if user liked this blog
+    let isLikedByUser = false;
+    if (userId) {
+      isLikedByUser = blog.likes.some((id) => id.toString() === userId);
+    }
     return {
       ...blogObj,
       likesCount: blog.likes?.length || 0,
       commentCount: commentCountMap.get(blog._id.toString()) || 0,
       sharesCount: blog.shares || 0,
+      isLikedByUser,
     };
   });
 

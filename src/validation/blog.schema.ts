@@ -18,7 +18,9 @@ const promptSnippetSchema = z.object({
     .string()
     .min(3, 'Prompt snippet title must be at least 3 characters.')
     .max(200, 'Prompt snippet title cannot exceed 200 characters.')
-    .transform(trimAndSanitize),
+    .transform(trimAndSanitize)
+    .optional()
+    .default(''),
   icon: z.string().transform(trimAndSanitize).optional(),
   optimizedFor: z
     .array(z.string().transform(trimAndSanitize))
@@ -62,11 +64,15 @@ const blogSectionImageSchema = z.object({
   caption: z
     .string()
     .max(300, 'Image caption cannot exceed 300 characters.')
-    .transform(trimAndSanitize),
+    .transform(trimAndSanitize)
+    .optional()
+    .default(''),
   alt: z
     .string()
     .max(200, 'Image alt text cannot exceed 200 characters.')
-    .transform(trimAndSanitize),
+    .transform(trimAndSanitize)
+    .optional()
+    .default(''),
 });
 
 // Blog Section Schema

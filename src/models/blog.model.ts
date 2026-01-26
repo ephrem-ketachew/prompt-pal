@@ -186,9 +186,10 @@ const promptSnippetSchema = new Schema(
   {
     title: {
       type: String,
-      required: [true, 'Prompt snippet title is required.'],
+      required: false,
       trim: true,
       maxlength: [200, 'Prompt snippet title cannot exceed 200 characters.'],
+      default: '',
     },
     icon: {
       type: String,
@@ -265,15 +266,17 @@ const blogSectionImageSchema = new Schema(
     },
     caption: {
       type: String,
-      required: [true, 'Image caption is required.'],
+      required: false,
       trim: true,
       maxlength: [300, 'Image caption cannot exceed 300 characters.'],
+      default: '',
     },
     alt: {
       type: String,
-      required: [true, 'Image alt text is required.'],
+      required: false,
       trim: true,
       maxlength: [200, 'Image alt text cannot exceed 200 characters.'],
+      default: '',
     },
   },
   { _id: false },
