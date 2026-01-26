@@ -167,7 +167,22 @@ export function analyzePrompt(
 function checkGrammar(prompt: string): string[] {
   const issues: string[] = [];
 
-  // Check for missing articles (a, an, the)
+  // Check for incorrect pluralization (musics -> music)
+  if (/\b(musics)\b/gi.test(prompt)) {
+    issues.push('Incorrect pluralization: "musics" should be "music"');
+  }
+
+  // Check for incorrect article usage with plural nouns (a movies, a musics)
+  if (/\ba\s+(movies|musics|songs|tracks)\b/gi.test(prompt)) {
+    issues.push('Incorrect article: plural nouns do not need "a"');
+  }
+
+  // Check for awkward phrases like "a wow movies"
+  if (/\ba\s+wow\s+(movies|musics|songs)\b/gi.test(prompt)) {
+    issues.push('Awkward phrasing: "a wow [plural]" is grammatically incorrect');
+  }
+
+  // Check for missing articles (a, an, the) for singular nouns
   if (/\b(cat|dog|image|picture|photo)\b/i.test(prompt) && !/\b(a|an|the)\s+(cat|dog|image|picture|photo)\b/i.test(prompt)) {
     issues.push('Missing article (a/an/the)');
   }
@@ -175,6 +190,16 @@ function checkGrammar(prompt: string): string[] {
   // Check for common grammar mistakes
   if (/\b(draw|make|create)\s+me\s+/i.test(prompt)) {
     issues.push('Informal language - consider using "create" instead of "draw me"');
+  }
+
+  // Check for multiple spaces
+  if (/\s{2,}/.test(prompt)) {
+    issues.push('Multiple consecutive spaces');
+  }
+
+  // Check for missing punctuation at end
+  if (prompt.trim().length > 10 && !/[.!?]$/.test(prompt.trim())) {
+    issues.push('Missing punctuation at end');
   }
 
   return issues;

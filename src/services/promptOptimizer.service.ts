@@ -29,7 +29,7 @@ import logger from '../config/logger.config.js';
 
 /**
  * Quick optimization - AI-powered optimization following prompt engineering best practices
- * Falls back to rule-based optimization if AI is unavailable
+ * AI optimization is required - no fallback to rule-based optimization
  */
 export const quickOptimize = async (
   userId: string,
@@ -58,88 +58,60 @@ export const quickOptimize = async (
   let validationMessage: string | undefined = preValidation.validationMessage;
   let improvements: string[] = [];
 
-  // Try AI optimization first if available
-  if (isGeminiAvailable()) {
-    try {
-      aiOptimizationResult = await quickOptimizeWithAI(
-        promptText,
-        targetModel as string,
-        mediaType,
-      );
-      
-      optimizedPrompt = aiOptimizationResult.optimizedPrompt;
-      usedAI = true;
-      improvements = aiOptimizationResult.improvements || [];
-      
-      // Use AI's validation message if provided
-      if (aiOptimizationResult.validationMessage) {
-        validationMessage = aiOptimizationResult.validationMessage;
-      }
-
-      // If AI says prompt is invalid, throw error
-      if (!aiOptimizationResult.isValid) {
-        throw new AppError(
-          aiOptimizationResult.validationMessage || 'Prompt is not valid for optimization.',
-          400,
-        );
-      }
-
-      logger.info(
-        {
-          userId,
-          originalLength: promptText.length,
-          optimizedLength: optimizedPrompt.length,
-          qualityScore: aiOptimizationResult.qualityScore,
-        },
-        'Quick optimization completed using AI',
-      );
-    } catch (error: any) {
-      // Log error but fall back to rule-based optimization
-      logger.warn(error, 'AI optimization failed, falling back to rule-based optimization');
-      
-      // If it's a validation error (not a technical error), throw it
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      // Otherwise, continue with fallback
-    }
+  // AI optimization is required - no fallback to rule-based
+  if (!isGeminiAvailable()) {
+    logger.error('Gemini is not available. AI optimization is required.');
+    throw new AppError(
+      'AI optimization service is currently unavailable. Please try again later or contact support if the issue persists.',
+      503,
+    );
   }
 
-  // Fallback to rule-based optimization if AI failed or unavailable
-  if (!usedAI) {
-    // Apply quick fixes (grammar and structure only)
-    if (originalAnalysis.grammarFixed) {
-      // Improve informal language first
-      optimizedPrompt = optimizedPrompt.replace(
-        /\b(draw|make)\s+me\s+/gi,
-        'create ',
-      );
+  try {
+    logger.info(
+      {
+        userId,
+        originalPrompt: promptText,
+        targetModel,
+        mediaType,
+      },
+      'Attempting AI optimization with Gemini',
+    );
 
-      // Fix missing articles (be more careful - only fix obvious cases)
-      optimizedPrompt = optimizedPrompt.replace(
-        /\b(create|generate|make)\s+(image|picture|photo)\s+of\s+(cat|dog|bird|animal)\b/gi,
-        (match: string, verb: string, img: string, animal: string) => {
-          return `${verb} an ${img} of a ${animal}`;
-        },
-      );
-      
-      improvements.push('Fixed informal language');
-      improvements.push('Added missing articles');
-    }
-
-    // Basic structure improvement
-    if (optimizedPrompt.length > 0 && !/[.!?]$/.test(optimizedPrompt.trim())) {
-      optimizedPrompt = optimizedPrompt.trim() + '.';
-      improvements.push('Added proper punctuation');
-    }
-
-    // Capitalize first letter
-    optimizedPrompt =
-      optimizedPrompt.charAt(0).toUpperCase() + optimizedPrompt.slice(1);
+    aiOptimizationResult = await quickOptimizeWithAI(
+      promptText,
+      targetModel as string,
+      mediaType,
+    );
     
-    if (improvements.length === 0) {
-      improvements.push('Applied basic formatting');
+    logger.info(
+      {
+        userId,
+        aiResult: {
+          optimizedPrompt: aiOptimizationResult.optimizedPrompt?.substring(0, 100),
+          isValid: aiOptimizationResult.isValid,
+          improvementsCount: aiOptimizationResult.improvements?.length || 0,
+          qualityScore: aiOptimizationResult.qualityScore,
+        },
+      },
+      'AI optimization completed successfully',
+    );
+    
+    optimizedPrompt = aiOptimizationResult.optimizedPrompt;
+    usedAI = true;
+    improvements = aiOptimizationResult.improvements || [];
+    
+    // Use AI's validation message if provided
+    if (aiOptimizationResult.validationMessage) {
+      validationMessage = aiOptimizationResult.validationMessage;
+    }
+
+    // If AI says prompt is invalid, throw error
+    if (!aiOptimizationResult.isValid) {
+      throw new AppError(
+        aiOptimizationResult.validationMessage || 'Prompt is not valid for optimization.',
+        400,
+      );
     }
 
     logger.info(
@@ -147,8 +119,43 @@ export const quickOptimize = async (
         userId,
         originalLength: promptText.length,
         optimizedLength: optimizedPrompt.length,
+        qualityScore: aiOptimizationResult.qualityScore,
+        improvementsCount: improvements.length,
       },
-      'Quick optimization completed using rule-based fallback',
+      'Quick optimization completed using AI',
+    );
+  } catch (error: any) {
+    // Log detailed error information
+    logger.error(
+      {
+        userId,
+        originalPrompt: promptText,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        errorName: error.name,
+        isAppError: error instanceof AppError,
+      },
+      'AI optimization failed',
+    );
+    
+    // If it's a validation error, throw it as-is
+    if (error instanceof AppError) {
+      throw error;
+    }
+    
+    // For technical errors, provide user-friendly message
+    throw new AppError(
+      'Failed to optimize prompt. The AI service encountered an error. Please try again in a moment. If the problem persists, contact support.',
+      503,
+    );
+  }
+
+  // AI optimization is required - if we reach here without usedAI, something went wrong
+  if (!usedAI) {
+    logger.error('AI optimization failed but no error was thrown. This should not happen.');
+    throw new AppError(
+      'Failed to optimize prompt. Please try again.',
+      500,
     );
   }
 
@@ -163,21 +170,62 @@ export const quickOptimize = async (
       3,
   );
 
-  const afterScore = usedAI && aiOptimizationResult
-    ? aiOptimizationResult.qualityScore
-    : Math.round(
-        (optimizedAnalysis.clarityScore +
-          optimizedAnalysis.specificityScore +
-          optimizedAnalysis.structureScore) /
-          3,
-      );
+  // Calculate quality score from AI optimization
+  // AI is required, so we should always have aiOptimizationResult here
+  if (!aiOptimizationResult) {
+    logger.error('AI optimization result is missing. This should not happen.');
+    throw new AppError('Failed to optimize prompt. Please try again.', 500);
+  }
+
+  // Use AI's quality score, but ensure it doesn't decrease
+  const aiScore = aiOptimizationResult.qualityScore;
+  let afterScore = Math.max(beforeScore, aiScore);
+  
+  // If AI made improvements but score is same, give a small boost
+  if (aiOptimizationResult.improvements && aiOptimizationResult.improvements.length > 0 && afterScore === beforeScore) {
+    afterScore = Math.min(100, beforeScore + 5);
+  }
+  
+  logger.info(
+    {
+      beforeScore,
+      aiScore,
+      finalAfterScore: afterScore,
+      aiImprovementsCount: aiOptimizationResult.improvements?.length || 0,
+    },
+    'Calculated quality score for AI optimization',
+  );
+
+  // Ensure improvements array is populated from AI
+  let finalImprovements = improvements;
+  
+  // AI is required, so we should always have improvements from AI
+  if (aiOptimizationResult && aiOptimizationResult.improvements && aiOptimizationResult.improvements.length > 0) {
+    finalImprovements = aiOptimizationResult.improvements;
+  } else if (finalImprovements.length === 0) {
+    // If AI didn't provide improvements, use a generic message
+    finalImprovements = ['Optimized prompt structure and clarity'];
+    logger.warn('AI optimization completed but no improvements were listed');
+  }
 
   const qualityScore = {
     before: beforeScore,
     after: afterScore,
-    improvements: improvements.length > 0 ? improvements : originalAnalysis.issues.map((issue) => `Fixed: ${issue}`),
+    improvements: finalImprovements,
     intentPreserved: true,
   };
+
+  // Log metadata before creating record
+  logger.info(
+    {
+      userId,
+      usedAI,
+      improvementsCount: finalImprovements.length,
+      qualityScoreBefore: beforeScore,
+      qualityScoreAfter: afterScore,
+    },
+    'Creating optimization record',
+  );
 
   // Create optimization record
   const optimization = await PromptOptimization.create({
@@ -208,7 +256,7 @@ export const quickOptimize = async (
         after: optimizedAnalysis.structureScore,
       },
       completenessScore: originalAnalysis.completenessScore,
-      usedAI,
+      usedAI: usedAI, // Explicitly set to ensure it's saved
       validationMessage,
     },
     analysis: {

@@ -25,7 +25,7 @@ export function initializeGemini() {
     genAI = new GoogleGenerativeAI(apiKey);
     const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const temperature = parseFloat(process.env.OPTIMIZATION_TEMPERATURE || '0.7');
-    const maxTokens = parseInt(process.env.OPTIMIZATION_MAX_TOKENS || '2000', 10);
+    const maxTokens = parseInt(process.env.OPTIMIZATION_MAX_TOKENS || '4000', 10);
 
     model = genAI.getGenerativeModel({
       model: modelName,
@@ -65,7 +65,22 @@ export async function generateContent(
     try {
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      return response.text();
+      const text = response.text();
+      
+      // Check if response was cut off (Gemini sometimes stops early)
+      const finishReason = (response as any).candidates?.[0]?.finishReason;
+      if (finishReason === 'MAX_TOKENS' || finishReason === 'OTHER') {
+        logger.warn(
+          {
+            finishReason,
+            responseLength: text.length,
+            attempt,
+          },
+          'Gemini response may be truncated due to finish reason',
+        );
+      }
+      
+      return text;
     } catch (error: any) {
       lastError = error;
       logger.error(error, `Gemini API error (attempt ${attempt}/${maxRetries})`);
@@ -771,19 +786,105 @@ CRITICAL JSON FORMATTING RULES:
 
 IMPORTANT:
 - The optimizedPrompt must be the final, ready-to-use prompt
+- The optimizedPrompt must be COMPLETE - do not truncate or cut off mid-sentence
+- Ensure the optimizedPrompt ends with proper punctuation (., !, or ?)
+- Keep the optimizedPrompt concise but complete (typically 50-200 words, but can be longer if needed)
+- If the prompt needs to be long, ensure it's complete and properly formatted
 - List specific improvements made (e.g., "Fixed grammar: added missing articles", "Removed redundancy: 'very very' → removed")
 - If isValid is false, validationMessage is required
-- qualityScore must be a number between 0-100`;
+- qualityScore must be a number between 0-100
+- CRITICAL: Return the FULL optimizedPrompt, not a truncated version
+- CRITICAL: Ensure the JSON is complete - all string values must be properly closed with quotes`;
 
   try {
+    logger.info('Calling Gemini API for quick optimization');
     const response = await generateContent(systemPrompt);
     
+    logger.info(
+      {
+        responseLength: response.length,
+        responsePreview: response.substring(0, 200),
+      },
+      'Received response from Gemini',
+    );
+    
     // Parse JSON with robust error handling
-    const parsed = parseJSONResponse(response) as QuickOptimizeResult;
+    let parsed: QuickOptimizeResult;
+    try {
+      parsed = parseJSONResponse(response) as QuickOptimizeResult;
+      logger.info('Successfully parsed JSON response from Gemini');
+    } catch (parseError: any) {
+      logger.error(
+        {
+          parseError: parseError.message,
+          responsePreview: response.substring(0, 500),
+          responseLength: response.length,
+        },
+        'Failed to parse Gemini JSON response',
+      );
+      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+    }
     
     // Validate the response structure
     if (!parsed.optimizedPrompt || typeof parsed.optimizedPrompt !== 'string') {
+      logger.error(
+        {
+          parsedKeys: Object.keys(parsed),
+          optimizedPromptType: typeof parsed.optimizedPrompt,
+          optimizedPromptValue: parsed.optimizedPrompt,
+        },
+        'Invalid response structure: missing or invalid optimizedPrompt',
+      );
       throw new Error('Invalid response: missing optimizedPrompt');
+    }
+    
+    // Check for truncated prompt (ends with escape sequence, incomplete sentence, or very short)
+    const endsWithEscape = parsed.optimizedPrompt.endsWith('\\') || parsed.optimizedPrompt.endsWith('\\"');
+    const missingPunctuation = !/[.!?]$/.test(parsed.optimizedPrompt.trim()) && parsed.optimizedPrompt.length > 50;
+    const suspiciouslyShort = response.length < 500 && parsed.optimizedPrompt.length < 200;
+    const isTruncated = endsWithEscape || missingPunctuation || suspiciouslyShort;
+    
+    if (isTruncated) {
+      logger.warn(
+        {
+          optimizedPrompt: parsed.optimizedPrompt.substring(0, 100),
+          promptLength: parsed.optimizedPrompt.length,
+          responseLength: response.length,
+          endsWithPunctuation: /[.!?]$/.test(parsed.optimizedPrompt.trim()),
+          endsWithEscape,
+          missingPunctuation,
+          suspiciouslyShort,
+        },
+        'Optimized prompt appears truncated or incomplete',
+      );
+      
+      // Try to clean up the truncated ending
+      let cleanedPrompt = parsed.optimizedPrompt
+        .replace(/\\+$/, '')
+        .replace(/\\"$/, '')
+        .trim();
+      
+      // If the prompt seems incomplete (no ending punctuation and reasonable length), 
+      // try to complete it intelligently
+      if (!/[.!?]$/.test(cleanedPrompt.trim()) && cleanedPrompt.length > 50) {
+        // Check if it ends mid-word or mid-sentence
+        const lastWord = cleanedPrompt.trim().split(/\s+/).pop() || '';
+        const endsMidWord = lastWord.length > 0 && !/[.!?,;:]$/.test(lastWord);
+        
+        if (endsMidWord) {
+          // Likely truncated mid-word, remove the incomplete word
+          cleanedPrompt = cleanedPrompt.trim().replace(/\s+\S+$/, '');
+        }
+        
+        // Add proper ending
+        if (cleanedPrompt.length > 0) {
+          cleanedPrompt = cleanedPrompt.trim() + '.';
+        }
+        
+        parsed.validationMessage = 'Response was truncated. The prompt has been completed with best effort. Consider using premium optimization for more detailed prompts.';
+      }
+      
+      parsed.optimizedPrompt = cleanedPrompt;
     }
     
     if (typeof parsed.isValid !== 'boolean') {
@@ -791,19 +892,52 @@ IMPORTANT:
     }
     
     if (!Array.isArray(parsed.improvements)) {
+      logger.warn(
+        {
+          improvementsType: typeof parsed.improvements,
+          improvementsValue: parsed.improvements,
+        },
+        'Improvements is not an array, defaulting to empty array',
+      );
       parsed.improvements = [];
     }
     
     if (typeof parsed.qualityScore !== 'number') {
+      logger.warn(
+        {
+          qualityScoreType: typeof parsed.qualityScore,
+          qualityScoreValue: parsed.qualityScore,
+        },
+        'Quality score is not a number, defaulting to 70',
+      );
       parsed.qualityScore = 70; // Default score
     }
     
     // Ensure qualityScore is within bounds
     parsed.qualityScore = Math.max(0, Math.min(100, parsed.qualityScore));
     
+    logger.info(
+      {
+        optimizedPromptLength: parsed.optimizedPrompt.length,
+        improvementsCount: parsed.improvements.length,
+        qualityScore: parsed.qualityScore,
+        isValid: parsed.isValid,
+      },
+      'Successfully processed AI optimization result',
+    );
+    
     return parsed;
   } catch (error: any) {
-    logger.error(error, 'Failed to quick optimize with AI');
+    logger.error(
+      {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        originalPrompt: originalPrompt.substring(0, 100),
+        targetModel,
+        mediaType,
+      },
+      'Failed to quick optimize with AI',
+    );
     throw new Error(`AI optimization failed: ${error.message || 'Unknown error'}`);
   }
 }

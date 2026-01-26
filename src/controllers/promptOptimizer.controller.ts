@@ -41,7 +41,9 @@ export const quickOptimize = catchAsync(
           metadata: {
             ...optimization.metadata,
             validationMessage: (optimization.metadata as any)?.validationMessage,
-            usedAI: (optimization.metadata as any)?.usedAI ?? false,
+            usedAI: (optimization.metadata as any)?.usedAI !== undefined 
+              ? (optimization.metadata as any).usedAI 
+              : optimization.optimizationType === 'quick' && optimization.optimizedPrompt !== optimization.originalPrompt,
           },
           analysis: optimization.analysis,
           improvements: optimization.qualityScore?.improvements || [],
