@@ -89,12 +89,25 @@ export async function generateContent(
       if (
         error.message?.includes('429') ||
         error.message?.includes('rate limit') ||
+        error.message?.includes('quota') ||
+        error.message?.includes('Quota exceeded') ||
         error.message?.includes('401') ||
         error.message?.includes('403')
       ) {
+        // Extract retry delay from error if available
+        const retryDelayMatch = error.message?.match(/retry in ([\d.]+)s/i);
+        const retryDelay = retryDelayMatch ? Math.ceil(parseFloat(retryDelayMatch[1])) : null;
+        
+        const rateLimitMessage = retryDelay
+          ? `Rate limit exceeded. Please try again in ${retryDelay} seconds. You've hit the free tier limit (20 requests per day per model).`
+          : 'Rate limit exceeded. Please try again later. You may have hit the free tier limit (20 requests per day per model).';
+        
         throw new Error(
-          error.message?.includes('429') || error.message?.includes('rate limit')
-            ? 'Rate limit exceeded. Please try again later.'
+          error.message?.includes('429') || 
+          error.message?.includes('rate limit') || 
+          error.message?.includes('quota') ||
+          error.message?.includes('Quota exceeded')
+            ? rateLimitMessage
             : 'Authentication failed. Please check your API key.',
         );
       }
@@ -125,7 +138,7 @@ export async function generateQuestions(
   // Get model-specific guidance
   const modelGuidance = getModelSpecificGuidance(targetModel, mediaType);
 
-  const systemPrompt = `You are a prompt optimization expert. Analyze this prompt and generate 3-5 essential questions to help create a premium optimized prompt.
+  const systemPrompt = `You are a prompt optimization expert. Analyze this prompt and generate comprehensive questions (5-10 questions, up to 10 for complex prompts) to help create a premium, high-quality optimized prompt.
 
 Original prompt: "${prompt}"
 Media type: ${mediaType}
@@ -133,14 +146,19 @@ Target model: ${targetModel}
 
 ${modelGuidance}
 
-Based on prompt engineering best practices for ${targetModel}, identify what's missing that would significantly improve this prompt.
+Based on prompt engineering best practices for ${targetModel}, identify ALL missing elements that would significantly improve this prompt. For premium optimization, we need comprehensive details covering all aspects.
 
-Generate 3-5 essential questions. Each question should:
-1. Address a critical missing element
-2. Have clear, simple options
-3. Include a sensible default
+IMPORTANT: Generate 5-10 questions (closer to 10 for simple/vague prompts like this one, fewer for already detailed prompts). The goal is to gather enough information to create a truly premium, detailed prompt.
+
+Each question should:
+1. Address a critical missing element (style, composition, quality, details, context, lighting, mood, setting, etc.)
+2. Have clear, simple options with good defaults
+3. Include a sensible default value
 4. Be optional (user can skip)
 5. Include an "Other" option with text input capability for flexibility
+6. Cover different aspects: style, composition, quality, details, setting, mood, lighting, camera angle, aspect ratio, color palette, etc.
+
+For image generation prompts, ensure you cover: style, subject details, composition, lighting, mood/atmosphere, background/setting, quality indicators, color palette, camera angle/perspective, and any model-specific requirements.
 
 Return your response as valid JSON in this exact format:
 {
@@ -170,16 +188,93 @@ Return your response as valid JSON in this exact format:
 
 Only return the JSON, no other text.`;
 
-  const response = await generateContent(systemPrompt);
-  
-  // Try to parse JSON from response
   try {
-    // Remove markdown code blocks if present
-    const cleanedResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleanedResponse);
-  } catch (parseError) {
-    logger.error(parseError, 'Failed to parse Gemini response as JSON');
-    throw new Error('Failed to parse AI response. Please try again.');
+    logger.info('Calling Gemini API for question generation');
+    const response = await generateContent(systemPrompt);
+    
+    logger.info(
+      {
+        responseLength: response.length,
+        responsePreview: response.substring(0, 200),
+      },
+      'Received response from Gemini for questions',
+    );
+    
+    // Parse JSON with robust error handling (same as quick optimize)
+    let parsed: any;
+    try {
+      parsed = parseJSONResponse(response);
+      logger.info('Successfully parsed JSON response from Gemini for questions');
+    } catch (parseError: any) {
+      logger.error(
+        {
+          parseError: parseError.message,
+          responsePreview: response.substring(0, 500),
+          responseLength: response.length,
+        },
+        'Failed to parse Gemini JSON response for questions',
+      );
+      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+    }
+    
+    // Validate the response structure
+    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      logger.error(
+        {
+          parsedKeys: Object.keys(parsed),
+          questionsType: typeof parsed.questions,
+          questionsValue: parsed.questions,
+        },
+        'Invalid response structure: missing or invalid questions array',
+      );
+      throw new Error('Invalid response: missing questions array');
+    }
+    
+    // Validate questions structure
+    for (const question of parsed.questions) {
+      if (!question.id || !question.question || !question.type) {
+        logger.error(
+          {
+            question,
+          },
+          'Invalid question structure',
+        );
+        throw new Error('Invalid response: questions must have id, question, and type fields');
+      }
+    }
+    
+    // Ensure additionalDetailsField exists
+    if (!parsed.additionalDetailsField) {
+      logger.warn('Response missing additionalDetailsField, adding default');
+      parsed.additionalDetailsField = {
+        question: 'Any additional details you\'d like to include?',
+        type: 'textarea',
+        placeholder: 'E.g., colors, moods, specific details, references - Add anything else you want!',
+        required: false,
+      };
+    }
+    
+    logger.info(
+      {
+        questionsCount: parsed.questions.length,
+        hasAdditionalDetails: !!parsed.additionalDetailsField,
+      },
+      'Successfully processed AI question generation result',
+    );
+    
+    return parsed;
+  } catch (error: any) {
+    logger.error(
+      {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        originalPrompt: prompt.substring(0, 100),
+        targetModel,
+        mediaType,
+      },
+      'Failed to generate questions with AI',
+    );
+    throw new Error(`AI question generation failed: ${error.message || 'Unknown error'}`);
   }
 }
 

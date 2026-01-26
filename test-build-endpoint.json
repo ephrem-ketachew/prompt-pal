@@ -1,0 +1,45 @@
+{
+  "originalPrompt": "create image of cat",
+  "targetModel": "DALL-E 3",
+  "mediaType": "image",
+  "answers": {
+    "style": {
+      "type": "option",
+      "value": "photorealistic"
+    },
+    "cat_details": {
+      "type": "option",
+      "value": "majestic Maine Coon gazing out a window"
+    },
+    "setting": {
+      "type": "option",
+      "value": "cozy indoor living room"
+    },
+    "mood": {
+      "type": "option",
+      "value": "calm_serene"
+    },
+    "lighting": {
+      "type": "option",
+      "value": "golden_hour_glow"
+    },
+    "composition": {
+      "type": "option",
+      "value": "eye_level_perspective"
+    },
+    "quality": {
+      "type": "option",
+      "value": "ultra_high_resolution_professional"
+    },
+    "color_palette": {
+      "type": "option",
+      "value": "warm_earthy_tones"
+    },
+    "aspect_ratio": {
+      "type": "option",
+      "value": "16:9"
+    }
+  },
+  "additionalDetails": "The cat should have beautiful long fur, sitting on a windowsill with soft curtains. The golden hour light should create a warm, peaceful atmosphere. Include some plants in the background and maybe a cozy blanket."
+}
+

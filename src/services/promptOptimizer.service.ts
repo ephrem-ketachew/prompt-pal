@@ -272,6 +272,7 @@ export const quickOptimize = async (
 
 /**
  * Analyze prompt and generate questions
+ * AI optimization is required - no fallback to template questions
  */
 export const analyzePromptForQuestions = async (
   userId: string,
@@ -282,38 +283,122 @@ export const analyzePromptForQuestions = async (
   // Analyze the prompt
   const analysis = analyzePrompt(originalPrompt as string, mediaType);
 
-  // Generate quick optimized version (fallback)
+  // Generate quick optimized version using AI (required)
   let quickOptimized: string = originalPrompt as string;
-  if (analysis.grammarFixed) {
-    quickOptimized = quickOptimized.replace(
-      /\b(draw|make)\s+me\s+/gi,
-      'create ',
+  
+  if (!isGeminiAvailable()) {
+    logger.error('Gemini is not available. AI optimization is required for premium questions.');
+    throw new AppError(
+      'AI optimization service is currently unavailable. Please try again later or contact support if the issue persists.',
+      503,
     );
-    quickOptimized =
-      quickOptimized.charAt(0).toUpperCase() + quickOptimized.slice(1);
-    if (!/[.!?]$/.test(quickOptimized.trim())) {
-      quickOptimized = quickOptimized.trim() + '.';
-    }
+  }
+
+  try {
+    // Use AI to generate quick optimized version
+    const quickOptimizeResult = await quickOptimizeWithAI(
+      originalPrompt as string,
+      targetModel as string,
+      mediaType,
+    );
+    quickOptimized = quickOptimizeResult.optimizedPrompt;
+    
+    logger.info(
+      {
+        userId,
+        originalLength: originalPrompt.length,
+        quickOptimizedLength: quickOptimized.length,
+      },
+      'Generated quick optimized version using AI',
+    );
+  } catch (error: any) {
+    logger.error(
+      {
+        userId,
+        originalPrompt: originalPrompt.substring(0, 100),
+        errorMessage: error.message,
+      },
+      'Failed to generate quick optimized version, using original',
+    );
+    // If AI fails for quick optimize, just use original - don't fail the whole request
+    // The questions generation will still work
   }
 
   // Check cache first
   const cacheKey = generateQuestionsCacheKey(originalPrompt as string, mediaType, targetModel as string);
   let questionsData = questionCache.get<any>(cacheKey);
 
-  // Generate questions using Gemini (if available) or template
+  // Generate questions using Gemini (required - no template fallback)
   if (!questionsData) {
-    if (isGeminiAvailable()) {
-      try {
-        questionsData = await generateQuestions(originalPrompt as string, mediaType, targetModel as string);
-        // Cache the questions
-        questionCache.set(cacheKey, questionsData);
-      } catch (error: any) {
-        logger.error(error, 'Failed to generate questions with Gemini, using template');
-        questionsData = getTemplateQuestions(mediaType);
-      }
-    } else {
-      questionsData = getTemplateQuestions(mediaType);
+    if (!isGeminiAvailable()) {
+      logger.error('Gemini is not available. AI is required for question generation.');
+      throw new AppError(
+        'AI optimization service is currently unavailable. Please try again later or contact support if the issue persists.',
+        503,
+      );
     }
+
+    try {
+      logger.info(
+        {
+          userId,
+          originalPrompt: originalPrompt.substring(0, 100),
+          targetModel,
+          mediaType,
+        },
+        'Generating premium questions with AI',
+      );
+
+      questionsData = await generateQuestions(originalPrompt as string, mediaType, targetModel as string);
+      
+      logger.info(
+        {
+          userId,
+          questionsCount: questionsData.questions?.length || 0,
+        },
+        'Successfully generated premium questions',
+      );
+
+      // Cache the questions
+      questionCache.set(cacheKey, questionsData);
+    } catch (error: any) {
+      logger.error(
+        {
+          userId,
+          originalPrompt: originalPrompt.substring(0, 100),
+          errorMessage: error.message,
+          errorStack: error.stack,
+        },
+        'Failed to generate questions with AI',
+      );
+      
+      // Check if it's a rate limit error
+      const isRateLimit = error.message?.includes('rate limit') || 
+                         error.message?.includes('Rate limit') ||
+                         error.message?.includes('quota') ||
+                         error.message?.includes('Quota exceeded') ||
+                         error.message?.includes('429');
+      
+      if (isRateLimit) {
+        // Extract retry delay if available from error message
+        const retryDelayMatch = error.message?.match(/retry in ([\d.]+)s/i) || 
+                                error.message?.match(/retryDelay.*?([\d.]+)s/i);
+        const retryDelay = retryDelayMatch ? Math.ceil(parseFloat(retryDelayMatch[1])) : null;
+        
+        const rateLimitMessage = retryDelay
+          ? `Rate limit exceeded. Please try again in ${retryDelay} seconds. You've hit the free tier limit (20 requests per day per model).`
+          : 'Rate limit exceeded. Please try again later. You may have hit the free tier limit (20 requests per day per model).';
+        
+        throw new AppError(rateLimitMessage, 429);
+      }
+      
+      throw new AppError(
+        'Failed to generate optimization questions. The AI service encountered an error. Please try again in a moment.',
+        503,
+      );
+    }
+  } else {
+    logger.info('Using cached questions for premium optimization');
   }
 
   // Create optimization record in 'analyzing' state
@@ -504,7 +589,8 @@ export const buildPremiumPrompt = async (
 };
 
 /**
- * Get template questions (fallback when Gemini is not available)
+ * Get template questions (DEPRECATED - no longer used, AI is required)
+ * Kept for reference but should not be called
  */
 function getTemplateQuestions(mediaType: 'text' | 'image' | 'video' | 'audio'): any {
   if (mediaType === 'image') {
