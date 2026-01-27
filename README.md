@@ -308,4 +308,4 @@ ISC
 
 **Version**: 1.0.0  
 **Last Updated**: January 2026  
-**Maintained by**: CCTechEt
+**Maintained by**: PromptPal Backend Team
