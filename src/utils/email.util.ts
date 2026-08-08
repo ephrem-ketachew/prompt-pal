@@ -26,9 +26,20 @@ const createTransporter = () => {
       },
     };
     logger.info('[Email]: Using Mailtrap transporter.');
+  } else if (config.smtp.user && config.smtp.password) {
+    transportConfig = {
+      host: config.smtp.host || 'smtp.gmail.com',
+      port: config.smtp.port || 587,
+      secure: false,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.password.replace(/\s+/g, ''),
+      },
+    };
+    logger.info('[Email]: Using SMTP transporter (Gmail/custom).');
   } else {
     logger.warn(
-      '[Email]: No email provider (Brevo/Mailtrap) configured. Email sending will be disabled.',
+      '[Email]: No email provider (Brevo/Mailtrap/SMTP) configured. Email sending will be disabled.',
     );
     return null;
   }

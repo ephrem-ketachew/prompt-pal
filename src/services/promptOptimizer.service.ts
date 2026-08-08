@@ -75,7 +75,7 @@ export const quickOptimize = async (
         targetModel,
         mediaType,
       },
-      'Attempting AI optimization with Gemini',
+      'Attempting AI optimization',
     );
 
     aiOptimizationResult = await quickOptimizeWithAI(
@@ -489,7 +489,10 @@ export const buildPremiumPrompt = async (
       throw new AppError('Failed to build optimized prompt. Please try again.', 500);
     }
   } else {
-    throw new AppError('Gemini is not available. Please configure GOOGLE_AI_API_KEY.', 500);
+    throw new AppError(
+      'AI is not available. Please configure GROQ_API_KEY or GOOGLE_AI_API_KEY.',
+      500,
+    );
   }
 
   // Validate intent preservation

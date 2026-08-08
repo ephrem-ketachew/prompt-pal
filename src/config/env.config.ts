@@ -100,6 +100,13 @@ const config: AppConfig = {
     smtpKey: getEnvVar('BREVO_SMTP_KEY', false),
   },
 
+  smtp: {
+    host: getEnvVar('EMAIL_HOST', false, 'smtp.gmail.com'),
+    port: getEnvVarAsInt('EMAIL_PORT', false, 587),
+    user: getEnvVar('EMAIL_HOST_USER', false),
+    password: getEnvVar('EMAIL_HOST_PASSWORD', false),
+  },
+
   googleOAuth: {
     clientId: getEnvVar('GOOGLE_CLIENT_ID', false),
     clientSecret: getEnvVar('GOOGLE_CLIENT_SECRET', false),
@@ -112,6 +119,13 @@ const config: AppConfig = {
     temperature: getEnvVarAsInt('OPTIMIZATION_TEMPERATURE', false, 0.7),
     maxTokens: getEnvVarAsInt('OPTIMIZATION_MAX_TOKENS', false, 2000),
   },
+
+  groq: {
+    apiKey: getEnvVar('GROQ_API_KEY', false),
+    model: getEnvVar('GROQ_MODEL', false, 'llama-3.3-70b-versatile'),
+  },
+
+  aiProvider: getEnvVar('AI_PROVIDER', false, 'auto')!,
 
   superAdmin: {
     email: getEnvVar('SUPER_ADMIN_EMAIL', false),

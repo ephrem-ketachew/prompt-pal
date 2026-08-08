@@ -65,17 +65,20 @@ export const verifyEmail = async (token: string) => {
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
     emailVerificationTokenExpires: { $gt: Date.now() },
-  }).select('+password');
+  }).select('+emailVerificationToken +emailVerificationTokenExpires');
 
   if (!user) {
     throw new AppError('Token is invalid or has expired.', 400);
   }
 
-  user.isEmailVerified = true;
-  user.emailVerificationToken = undefined;
-  user.emailVerificationTokenExpires = undefined;
+  // Idempotent: already verified (e.g. React Strict Mode double-call) is success
+  if (user.isEmailVerified) {
+    return;
+  }
 
-  await user.save();
+  user.isEmailVerified = true;
+  // Keep token until it expires so duplicate clicks / remounts stay idempotent
+  await user.save({ validateBeforeSave: false });
 };
 
 export const loginUser = async (input: LoginUserInput) => {

@@ -1,21 +1,53 @@
 /**
- * Google Gemini AI Integration Utility
- * Handles all interactions with Google Gemini API
+ * AI Integration Utility (Gemini + Groq)
+ * Handles prompt optimization via Google Gemini or Groq OpenAI-compatible API
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import config from '../config/env.config.js';
+import axios from 'axios';
+import '../config/env.config.js';
 import logger from '../config/logger.config.js';
+
+export type AIProvider = 'gemini' | 'groq';
 
 // Initialize Gemini
 let genAI: GoogleGenerativeAI | null = null;
-let model: any = null;
+let geminiModel: any = null;
+
+// Groq config
+let groqApiKey: string | null = null;
+let groqModelName = 'llama-3.3-70b-versatile';
+let activeProvider: AIProvider | null = null;
+
+const temperature = parseFloat(process.env.OPTIMIZATION_TEMPERATURE || '0.7');
+const maxTokens = parseInt(process.env.OPTIMIZATION_MAX_TOKENS || '4000', 10);
+
+/**
+ * Resolve which provider to use: AI_PROVIDER=groq|gemini|auto
+ * auto prefers Groq when configured, otherwise Gemini
+ */
+function resolveProvider(): AIProvider | null {
+  const preferred = (process.env.AI_PROVIDER || 'auto').toLowerCase();
+  const hasGroq = Boolean(groqApiKey);
+  const hasGemini = geminiModel !== null;
+
+  if (preferred === 'groq') {
+    return hasGroq ? 'groq' : hasGemini ? 'gemini' : null;
+  }
+  if (preferred === 'gemini') {
+    return hasGemini ? 'gemini' : hasGroq ? 'groq' : null;
+  }
+  // auto
+  if (hasGroq) return 'groq';
+  if (hasGemini) return 'gemini';
+  return null;
+}
 
 /**
  * Initialize Gemini client
  */
-export function initializeGemini() {
+function initializeGeminiClient() {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
-  
+
   if (!apiKey) {
     logger.warn('GOOGLE_AI_API_KEY not set. Gemini features will be disabled.');
     return;
@@ -24,10 +56,8 @@ export function initializeGemini() {
   try {
     genAI = new GoogleGenerativeAI(apiKey);
     const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const temperature = parseFloat(process.env.OPTIMIZATION_TEMPERATURE || '0.7');
-    const maxTokens = parseInt(process.env.OPTIMIZATION_MAX_TOKENS || '4000', 10);
 
-    model = genAI.getGenerativeModel({
+    geminiModel = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
         temperature,
@@ -42,32 +72,63 @@ export function initializeGemini() {
 }
 
 /**
- * Check if Gemini is available
+ * Initialize Groq client (OpenAI-compatible chat completions)
  */
-export function isGeminiAvailable(): boolean {
-  return model !== null;
+function initializeGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    logger.warn('GROQ_API_KEY not set. Groq features will be disabled.');
+    return;
+  }
+
+  groqApiKey = apiKey;
+  groqModelName = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  logger.info(`Groq initialized with model: ${groqModelName}`);
 }
 
 /**
- * Generate content using Gemini with retry logic
+ * Initialize all AI providers
  */
-export async function generateContent(
+export function initializeGemini() {
+  initializeGeminiClient();
+  initializeGroqClient();
+  activeProvider = resolveProvider();
+
+  if (activeProvider) {
+    logger.info(`Active AI provider: ${activeProvider}`);
+  } else {
+    logger.warn('No AI provider configured. Set GROQ_API_KEY and/or GOOGLE_AI_API_KEY.');
+  }
+}
+
+/**
+ * Check if any AI provider is available
+ */
+export function isGeminiAvailable(): boolean {
+  return resolveProvider() !== null;
+}
+
+export function getActiveAIProvider(): AIProvider | null {
+  return resolveProvider();
+}
+
+async function generateWithGemini(
   prompt: string,
-  maxRetries: number = 3,
+  maxRetries: number,
 ): Promise<string> {
-  if (!model) {
+  if (!geminiModel) {
     throw new Error('Gemini is not initialized. Please set GOOGLE_AI_API_KEY.');
   }
 
   let lastError: any;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const result = await model.generateContent(prompt);
+      const result = await geminiModel.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      
-      // Check if response was cut off (Gemini sometimes stops early)
+
       const finishReason = (response as any).candidates?.[0]?.finishReason;
       if (finishReason === 'MAX_TOKENS' || finishReason === 'OTHER') {
         logger.warn(
@@ -79,13 +140,12 @@ export async function generateContent(
           'Gemini response may be truncated due to finish reason',
         );
       }
-      
+
       return text;
     } catch (error: any) {
       lastError = error;
       logger.error(error, `Gemini API error (attempt ${attempt}/${maxRetries})`);
-      
-      // Don't retry on rate limits or authentication errors
+
       if (
         error.message?.includes('429') ||
         error.message?.includes('rate limit') ||
@@ -94,37 +154,136 @@ export async function generateContent(
         error.message?.includes('401') ||
         error.message?.includes('403')
       ) {
-        // Extract retry delay from error if available
         const retryDelayMatch = error.message?.match(/retry in ([\d.]+)s/i);
-        const retryDelay = retryDelayMatch ? Math.ceil(parseFloat(retryDelayMatch[1])) : null;
-        
+        const retryDelay = retryDelayMatch
+          ? Math.ceil(parseFloat(retryDelayMatch[1]))
+          : null;
+
         const rateLimitMessage = retryDelay
           ? `Rate limit exceeded. Please try again in ${retryDelay} seconds. You've hit the free tier limit (20 requests per day per model).`
           : 'Rate limit exceeded. Please try again later. You may have hit the free tier limit (20 requests per day per model).';
-        
+
         throw new Error(
-          error.message?.includes('429') || 
-          error.message?.includes('rate limit') || 
-          error.message?.includes('quota') ||
-          error.message?.includes('Quota exceeded')
+          error.message?.includes('429') ||
+            error.message?.includes('rate limit') ||
+            error.message?.includes('quota') ||
+            error.message?.includes('Quota exceeded')
             ? rateLimitMessage
             : 'Authentication failed. Please check your API key.',
         );
       }
-      
-      // Retry with exponential backoff
+
       if (attempt < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds
-        logger.info(`Retrying in ${delay}ms...`);
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        logger.info(`Retrying Gemini in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
-  // All retries failed
+
   throw new Error(
     `Gemini API error after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`,
   );
+}
+
+async function generateWithGroq(
+  prompt: string,
+  maxRetries: number,
+): Promise<string> {
+  if (!groqApiKey) {
+    throw new Error('Groq is not initialized. Please set GROQ_API_KEY.');
+  }
+
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const { data } = await axios.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: groqModelName,
+          messages: [{ role: 'user', content: prompt }],
+          temperature,
+          max_tokens: maxTokens,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000,
+        },
+      );
+
+      const text = data?.choices?.[0]?.message?.content;
+      if (!text || typeof text !== 'string') {
+        throw new Error('Empty response from Groq');
+      }
+
+      const finishReason = data?.choices?.[0]?.finish_reason;
+      if (finishReason === 'length') {
+        logger.warn(
+          { finishReason, responseLength: text.length, attempt },
+          'Groq response may be truncated due to max_tokens',
+        );
+      }
+
+      return text;
+    } catch (error: any) {
+      lastError = error;
+      const status = error.response?.status;
+      const apiMessage =
+        error.response?.data?.error?.message || error.message || 'Unknown error';
+
+      logger.error(
+        { status, message: apiMessage, attempt },
+        `Groq API error (attempt ${attempt}/${maxRetries})`,
+      );
+
+      if (status === 401 || status === 403) {
+        throw new Error('Authentication failed. Please check your Groq API key.');
+      }
+
+      if (status === 429) {
+        throw new Error(
+          'Rate limit exceeded. Please try again later.',
+        );
+      }
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        logger.info(`Retrying Groq in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(
+    `Groq API error after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`,
+  );
+}
+
+/**
+ * Generate content using the active AI provider (Groq or Gemini) with retry logic
+ */
+export async function generateContent(
+  prompt: string,
+  maxRetries: number = 3,
+): Promise<string> {
+  const provider = resolveProvider();
+  if (!provider) {
+    throw new Error(
+      'No AI provider is initialized. Please set GROQ_API_KEY or GOOGLE_AI_API_KEY.',
+    );
+  }
+
+  activeProvider = provider;
+  logger.debug({ provider }, 'Generating content with AI provider');
+
+  if (provider === 'groq') {
+    return generateWithGroq(prompt, maxRetries);
+  }
+  return generateWithGemini(prompt, maxRetries);
 }
 
 /**

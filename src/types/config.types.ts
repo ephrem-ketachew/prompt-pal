@@ -27,6 +27,14 @@ interface BrevoConfig {
   user?: string;
   smtpKey?: string;
 }
+
+interface SmtpConfig {
+  host?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+}
+
 interface SuperAdminConfig {
   email?: string;
   password?: string;
@@ -46,6 +54,11 @@ interface GeminiConfig {
   maxTokens?: number;
 }
 
+interface GroqConfig {
+  apiKey?: string;
+  model?: string;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'production' | 'test';
   isProduction: boolean;
@@ -61,7 +74,10 @@ export interface AppConfig {
   cloudinary: CloudinaryConfig;
   mailtrap: MailtrapConfig;
   brevo: BrevoConfig;
+  smtp: SmtpConfig;
   googleOAuth: GoogleOAuthConfig;
   gemini: GeminiConfig;
+  groq: GroqConfig;
+  aiProvider: string;
   superAdmin: SuperAdminConfig;
 }
