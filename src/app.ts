@@ -5,7 +5,6 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
-// damn
 import config from './config/env.config.js';
 import logger from './config/logger.config.js';
 import swaggerSpec from './config/swagger.js';
